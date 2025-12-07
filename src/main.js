@@ -1,9 +1,17 @@
+import * as THREE from 'three';
 import { SceneManager } from './scene.js';
 import { ModeManager, Modes } from './tools/modes.js';
 import { Toolbar } from './tools/toolbar.js';
 import { ImagePlane } from './geometry/plane.js';
+import { EditableMesh } from './geometry/face.js';
 import { HistoryManager } from './history/undo.js';
 import { StorageManager } from './storage/local.js';
+import { PerspectiveOverlay } from './perspective/overlay.js';
+import { perspectiveTransform } from './perspective/dewarp.js';
+import { CutOverlay, splitFace } from './geometry/cut.js';
+import { SelectTool } from './tools/select.js';
+import { ExtrudeTool, extrudeFace } from './geometry/extrude.js';
+import { downloadOBJ } from './export/obj.js';
 
 /**
  * Main Application class
@@ -13,7 +21,7 @@ class App {
   constructor() {
     // Get canvas elements
     this.canvas = document.getElementById('canvas');
-    this.overlay = document.getElementById('overlay');
+    this.overlayCanvas = document.getElementById('overlay');
 
     // Initialize managers
     this.scene = new SceneManager(this.canvas);
@@ -24,18 +32,40 @@ class App {
     // Initialize UI
     this.toolbar = new Toolbar(this);
 
+    // Initialize tools
+    this.perspectiveOverlay = new PerspectiveOverlay(this.overlayCanvas, this.scene);
+    this.perspectiveOverlay.onComplete = (lines) => this.onPerspectiveComplete(lines);
+
+    this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
+    this.cutOverlay.onCutComplete = (face, startEdge, endEdge) => this.onCutComplete(face, startEdge, endEdge);
+
+    this.selectTool = new SelectTool(this.scene);
+    this.selectTool.onSelect = (face) => this.onFaceSelected(face);
+
+    this.extrudeTool = new ExtrudeTool(this.scene);
+    this.extrudeTool.onExtrudeComplete = (face, distance) => this.onExtrudeComplete(face, distance);
+
     // State
     this.imagePlane = null;
+    this.editableMesh = null;
     this.hasImage = false;
     this.hasMesh = false;
     this.selectedFace = null;
     this.gridSnap = false;
 
+    // Image/texture data
+    this.currentImageData = null;
+    this.currentImageElement = null;
+    this.correctedCanvas = null;
+
     // Bind methods
     this.updateUI = this.updateUI.bind(this);
 
     // Listen to mode changes
-    this.modeManager.onModeChange(() => this.updateUI());
+    this.modeManager.onModeChange((newMode, oldMode) => {
+      this.onModeChange(newMode, oldMode);
+      this.updateUI();
+    });
 
     // Listen to history changes
     this.history.onChange(() => this.updateUI());
@@ -47,7 +77,60 @@ class App {
   }
 
   /**
-   * Update toolbar state based on current app state
+   * Handle mode changes
+   */
+  onModeChange(newMode, oldMode) {
+    // Deactivate old mode tools
+    switch (oldMode) {
+      case Modes.PERSPECTIVE:
+        this.perspectiveOverlay.deactivate();
+        break;
+      case Modes.CUT:
+        this.cutOverlay.deactivate();
+        break;
+      case Modes.SELECT:
+        this.selectTool.deactivate();
+        break;
+      case Modes.EXTRUDE:
+        this.extrudeTool.deactivate();
+        break;
+    }
+
+    // Activate new mode tools
+    switch (newMode) {
+      case Modes.PERSPECTIVE:
+        if (this.hasImage) {
+          this.perspectiveOverlay.activate();
+        }
+        break;
+      case Modes.CUT:
+        if (this.editableMesh) {
+          this.cutOverlay.setMesh(this.editableMesh);
+          this.cutOverlay.activate();
+        }
+        break;
+      case Modes.SELECT:
+        if (this.editableMesh) {
+          this.selectTool.setMesh(this.editableMesh);
+          this.selectTool.activate(this.canvas);
+        }
+        break;
+      case Modes.EXTRUDE:
+        if (this.editableMesh && this.selectedFace) {
+          this.extrudeTool.setMesh(this.editableMesh);
+          this.extrudeTool.setSelectedFace(this.selectedFace);
+          this.extrudeTool.activate(this.canvas);
+        }
+        break;
+    }
+
+    // Update orbit controls
+    const orbitModes = [Modes.IDLE, Modes.SELECT];
+    this.scene.setControlsEnabled(orbitModes.includes(newMode));
+  }
+
+  /**
+   * Update toolbar state
    */
   updateUI() {
     const state = {
@@ -66,34 +149,37 @@ class App {
 
   /**
    * Import image file
-   * @param {File} file
    */
   async importImage(file) {
     try {
-      // Remove existing plane if any
+      // Cleanup existing
       if (this.imagePlane) {
         this.scene.remove(this.imagePlane.mesh);
         this.imagePlane.dispose();
+        this.imagePlane = null;
+      }
+      if (this.editableMesh) {
+        this.scene.remove(this.editableMesh.mesh);
+        this.editableMesh.dispose();
+        this.editableMesh = null;
       }
 
-      // Create new image plane
+      // Create image plane
       this.imagePlane = new ImagePlane();
       const mesh = await this.imagePlane.loadFromFile(file);
 
-      // Add to scene
+      this.currentImageData = this.imagePlane.getImageData();
+      this.currentImageElement = new Image();
+      this.currentImageElement.src = this.currentImageData;
+
       this.scene.add(mesh);
 
-      // Update state
       this.hasImage = true;
-      this.hasMesh = false; // Not a mesh until perspective is corrected
+      this.hasMesh = false;
       this.selectedFace = null;
 
-      // Reset camera to view the plane
       this.scene.resetCamera();
-
-      // Switch to perspective mode
-      this.modeManager.setMode(Modes.PERSPECTIVE);
-
+      this.setMode(Modes.PERSPECTIVE);
       this.updateUI();
 
       console.log('Image imported:', file.name);
@@ -104,56 +190,199 @@ class App {
   }
 
   /**
-   * Set current tool mode
-   * @param {string} mode
+   * Handle perspective correction complete
    */
-  setMode(mode) {
-    this.modeManager.setMode(mode);
+  async onPerspectiveComplete(lines) {
+    console.log('Perspective lines drawn:', lines);
 
-    // Enable/disable orbit controls based on mode
-    const orbitModes = [Modes.IDLE, Modes.SELECT];
-    this.scene.setControlsEnabled(orbitModes.includes(mode));
+    if (!this.currentImageElement || !this.currentImageElement.complete) {
+      console.error('Image not loaded');
+      return;
+    }
 
-    // Show/hide overlay for 2D modes
-    const overlayModes = [Modes.PERSPECTIVE, Modes.CUT];
-    this.overlay.style.display = overlayModes.includes(mode) ? 'block' : 'none';
-    this.overlay.classList.toggle('active', overlayModes.includes(mode));
+    try {
+      const canvasWidth = this.overlayCanvas.width;
+      const canvasHeight = this.overlayCanvas.height;
+
+      const result = await perspectiveTransform(
+        lines.x,
+        lines.y,
+        this.currentImageElement,
+        canvasWidth,
+        canvasHeight
+      );
+
+      // Store corrected canvas for export
+      this.correctedCanvas = result.canvas;
+
+      // Remove original image plane
+      if (this.imagePlane) {
+        this.scene.remove(this.imagePlane.mesh);
+        this.imagePlane.dispose();
+        this.imagePlane = null;
+      }
+
+      // Create texture from corrected image
+      const correctedTexture = new THREE.CanvasTexture(result.canvas);
+      correctedTexture.colorSpace = THREE.SRGBColorSpace;
+
+      // Calculate plane dimensions
+      const maxSize = 2;
+      const aspect = result.width / result.height;
+      let width, height;
+
+      if (aspect > 1) {
+        width = maxSize;
+        height = maxSize / aspect;
+      } else {
+        height = maxSize;
+        width = maxSize * aspect;
+      }
+
+      // Create editable mesh
+      this.editableMesh = new EditableMesh();
+      this.editableMesh.createFromDimensions(width, height, correctedTexture);
+
+      this.scene.add(this.editableMesh.mesh);
+
+      this.hasMesh = true;
+      this.perspectiveOverlay.deactivate();
+      this.setMode(Modes.SELECT);
+
+      this.history.pushState(this.getSerializableState(), 'Perspective correction');
+      this.scene.resetCamera();
+      this.updateUI();
+
+      console.log('Editable mesh created');
+    } catch (error) {
+      console.error('Failed to apply perspective correction:', error);
+      alert('Failed to apply perspective correction. Please try again.');
+    }
   }
 
   /**
-   * Set grid snap on/off
-   * @param {boolean} enabled
+   * Handle face selection
+   */
+  onFaceSelected(face) {
+    this.selectedFace = face;
+    this.updateUI();
+
+    if (face) {
+      console.log('Face selected:', face.id);
+    }
+  }
+
+  /**
+   * Handle cut complete
+   */
+  onCutComplete(face, startEdge, endEdge) {
+    console.log('Cut:', face.id, startEdge, endEdge);
+
+    // Save state for undo
+    this.history.pushState(this.getSerializableState(), 'Cut face');
+
+    // Perform the cut
+    const result = splitFace(face, startEdge, endEdge, this.editableMesh.nextFaceId);
+
+    if (result) {
+      // Remove old face
+      const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
+      if (faceIndex >= 0) {
+        this.editableMesh.faces.splice(faceIndex, 1);
+      }
+
+      // Add new faces
+      this.editableMesh.faces.push(result.face1);
+      this.editableMesh.faces.push(result.face2);
+      this.editableMesh.nextFaceId = result.face2.id + 1;
+
+      // Rebuild mesh
+      this.editableMesh.rebuildMesh();
+
+      console.log('Face split into', result.face1.id, 'and', result.face2.id);
+    }
+  }
+
+  /**
+   * Handle extrusion complete
+   */
+  onExtrudeComplete(face, distance) {
+    console.log('Extrude:', face.id, 'distance:', distance);
+
+    // Save state for undo
+    this.history.pushState(this.getSerializableState(), 'Extrude face');
+
+    // Perform extrusion
+    const result = extrudeFace(face, distance, this.editableMesh.nextFaceId);
+
+    // Remove original face
+    const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
+    if (faceIndex >= 0) {
+      this.editableMesh.faces.splice(faceIndex, 1);
+    }
+
+    // Add extruded face and side faces
+    this.editableMesh.faces.push(result.extrudedFace);
+    result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
+    this.editableMesh.nextFaceId = result.nextFaceId;
+
+    // Rebuild mesh
+    this.editableMesh.rebuildMesh();
+
+    // Update selection to extruded face
+    this.selectedFace = result.extrudedFace;
+    this.selectTool.setMesh(this.editableMesh);
+    this.selectTool.selectFace(result.extrudedFace);
+    this.extrudeTool.setSelectedFace(result.extrudedFace);
+
+    this.updateUI();
+
+    console.log('Extrusion complete');
+  }
+
+  /**
+   * Set current mode
+   */
+  setMode(mode) {
+    this.modeManager.setMode(mode);
+  }
+
+  /**
+   * Set grid snap
    */
   setGridSnap(enabled) {
     this.gridSnap = enabled;
-    // Grid visibility follows snap setting for now
     this.scene.setGridVisible(enabled);
   }
 
   /**
-   * Set viewport background color
-   * @param {string} hexColor
+   * Set background color
    */
   setBackgroundColor(hexColor) {
     this.scene.setBackgroundColor(hexColor);
   }
 
   /**
-   * Export model as OBJ
+   * Export to OBJ
    */
-  exportOBJ() {
-    if (!this.hasMesh) {
+  async exportOBJ() {
+    if (!this.hasMesh || !this.editableMesh) {
       alert('No mesh to export. Complete perspective correction first.');
       return;
     }
 
-    // TODO: Implement OBJ export
-    console.log('Export OBJ - not yet implemented');
-    alert('Export functionality coming in a future update!');
+    try {
+      const name = 'imagemodel_export';
+      await downloadOBJ(this.editableMesh, this.correctedCanvas, name);
+      console.log('Export complete');
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    }
   }
 
   /**
-   * Undo last action
+   * Undo
    */
   undo() {
     const state = this.getSerializableState();
@@ -165,7 +394,7 @@ class App {
   }
 
   /**
-   * Redo last undone action
+   * Redo
    */
   redo() {
     const state = this.getSerializableState();
@@ -177,44 +406,50 @@ class App {
   }
 
   /**
-   * Get serializable state for undo/redo
-   * @returns {object}
+   * Get serializable state
    */
   getSerializableState() {
-    // TODO: Implement proper state serialization
     return {
       hasImage: this.hasImage,
-      hasMesh: this.hasMesh
+      hasMesh: this.hasMesh,
+      mesh: this.editableMesh ? this.editableMesh.serialize() : null
     };
   }
 
   /**
-   * Restore state from snapshot
-   * @param {object} state
+   * Restore state
    */
   restoreState(state) {
-    // TODO: Implement proper state restoration
-    console.log('Restore state:', state);
+    this.hasImage = state.hasImage;
+    this.hasMesh = state.hasMesh;
+
+    if (state.mesh && this.editableMesh) {
+      this.editableMesh.deserialize(state.mesh);
+    }
+
+    // Clear selection on restore
+    this.selectedFace = null;
+    if (this.selectTool) {
+      this.selectTool.clearSelection();
+    }
+
+    this.updateUI();
   }
 
   /**
-   * Save project to local storage
+   * Save project
    */
   saveProject() {
     const state = this.getSerializableState();
     const success = this.storage.save(state);
-
-    if (success) {
-      console.log('Project saved');
-    }
+    if (success) console.log('Project saved');
   }
 
   /**
-   * Load project from local storage
+   * Load project
    */
   loadProject() {
     const state = this.storage.load();
-
     if (state) {
       this.restoreState(state);
       console.log('Project loaded');
