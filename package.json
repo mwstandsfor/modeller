@@ -1,0 +1,18 @@
+{
+  "name": "imagemodel",
+  "version": "0.1.0",
+  "description": "A web-based 3D modeling app using image planes and extrusion",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vite-plugin-pwa": "^0.17.0"
+  }
+}

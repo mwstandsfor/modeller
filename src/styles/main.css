@@ -1,0 +1,340 @@
+/* CSS Variables - Dark Theme (Blender-inspired) */
+:root {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242424;
+  --bg-tertiary: #2d2d2d;
+  --bg-hover: #3d3d3d;
+  --bg-active: #4a4a4a;
+
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #606060;
+
+  --accent: #4a90d9;
+  --accent-hover: #5ba0e9;
+  --accent-active: #3a80c9;
+
+  --border: #3a3a3a;
+  --border-light: #4a4a4a;
+
+  --success: #4caf50;
+  --warning: #ff9800;
+  --error: #f44336;
+
+  --toolbar-width: 180px;
+  --mode-bar-height: 32px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  --transition: 150ms ease;
+}
+
+/* Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent pull-to-refresh and overscroll on iOS */
+html, body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  touch-action: none;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-size: 13px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+#app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Toolbar */
+#toolbar {
+  width: var(--toolbar-width);
+  min-width: var(--toolbar-width);
+  height: 100%;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.toolbar-section {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-section:last-child {
+  border-bottom: none;
+}
+
+.toolbar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+/* Tool Buttons */
+.tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+}
+
+.tool-btn:last-child {
+  margin-bottom: 0;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+}
+
+.tool-btn:active:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.tool-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tool-btn .icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.tool-btn.small {
+  padding: 6px 10px;
+  justify-content: center;
+}
+
+.tool-btn.small .icon {
+  font-size: 18px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-group .tool-btn {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* Toggle Options */
+.toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.toggle-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Color Picker */
+.color-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.color-option input[type="color"] {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.color-option input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-option input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+/* Viewport */
+#viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+#canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  touch-action: none;
+}
+
+#overlay.active {
+  pointer-events: auto;
+}
+
+/* Mode Bar */
+#mode-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--mode-bar-height);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+#current-mode {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Instructions Tooltip */
+#instructions {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-active);
+}
+
+/* Selection highlight color */
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  :root {
+    --toolbar-width: 60px;
+  }
+
+  .toolbar-title {
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .section-title {
+    display: none;
+  }
+
+  .tool-btn {
+    flex-direction: column;
+    padding: 8px 4px;
+    gap: 4px;
+  }
+
+  .tool-btn .label {
+    font-size: 10px;
+  }
+
+  .tool-btn .icon {
+    font-size: 20px;
+  }
+
+  .toggle-option span {
+    display: none;
+  }
+
+  .color-option span {
+    display: none;
+  }
+
+  .color-option {
+    justify-content: center;
+  }
+}

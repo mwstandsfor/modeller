@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>ImageModel</title>
+  <link rel="stylesheet" href="/src/styles/main.css">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+</head>
+<body>
+  <div id="app">
+    <!-- Toolbar -->
+    <aside id="toolbar">
+      <div class="toolbar-section">
+        <h2 class="toolbar-title">ImageModel</h2>
+      </div>
+
+      <div class="toolbar-section">
+        <h3 class="section-title">File</h3>
+        <button id="btn-import" class="tool-btn" title="Import Image">
+          <span class="icon">&#128193;</span>
+          <span class="label">Import</span>
+        </button>
+        <button id="btn-export" class="tool-btn" disabled title="Export OBJ">
+          <span class="icon">&#128190;</span>
+          <span class="label">Export</span>
+        </button>
+      </div>
+
+      <div class="toolbar-section">
+        <h3 class="section-title">Tools</h3>
+        <button id="btn-perspective" class="tool-btn" disabled title="Perspective Correction">
+          <span class="icon">&#9638;</span>
+          <span class="label">Perspective</span>
+        </button>
+        <button id="btn-cut" class="tool-btn" disabled title="Cut Faces">
+          <span class="icon">&#9986;</span>
+          <span class="label">Cut</span>
+        </button>
+        <button id="btn-select" class="tool-btn" disabled title="Select Faces">
+          <span class="icon">&#9754;</span>
+          <span class="label">Select</span>
+        </button>
+        <button id="btn-extrude" class="tool-btn" disabled title="Extrude/Intrude">
+          <span class="icon">&#8597;</span>
+          <span class="label">Extrude</span>
+        </button>
+      </div>
+
+      <div class="toolbar-section">
+        <h3 class="section-title">Options</h3>
+        <label class="toggle-option">
+          <input type="checkbox" id="toggle-grid">
+          <span>Grid Snap</span>
+        </label>
+      </div>
+
+      <div class="toolbar-section">
+        <h3 class="section-title">Edit</h3>
+        <div class="btn-group">
+          <button id="btn-undo" class="tool-btn small" disabled title="Undo">
+            <span class="icon">&#8630;</span>
+          </button>
+          <button id="btn-redo" class="tool-btn small" disabled title="Redo">
+            <span class="icon">&#8631;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="toolbar-section">
+        <h3 class="section-title">View</h3>
+        <label class="color-option">
+          <span>Background</span>
+          <input type="color" id="bg-color" value="#2d2d2d">
+        </label>
+      </div>
+    </aside>
+
+    <!-- Main Viewport -->
+    <main id="viewport">
+      <canvas id="canvas"></canvas>
+
+      <!-- 2D Overlay for perspective lines -->
+      <canvas id="overlay" style="display: none;"></canvas>
+
+      <!-- Mode indicator -->
+      <div id="mode-bar">
+        <span id="current-mode">Ready - Import an image to begin</span>
+      </div>
+
+      <!-- Instructions tooltip -->
+      <div id="instructions" style="display: none;"></div>
+    </main>
+  </div>
+
+  <!-- Hidden file input -->
+  <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
