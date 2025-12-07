@@ -88,6 +88,13 @@ export class EditableMesh {
     this.nextFaceId = 0;
     this.texture = null;
     this.mesh = null; // Three.js mesh
+    this.wireframe = null; // Wireframe overlay
+    this.wireframeMaterial = new THREE.LineBasicMaterial({
+      color: 0x00ffff,
+      linewidth: 1,
+      transparent: true,
+      opacity: 0.8
+    });
   }
 
   /**
@@ -127,9 +134,14 @@ export class EditableMesh {
    * Rebuild the Three.js mesh from faces
    */
   rebuildMesh() {
-    // Dispose old mesh
+    // Dispose old mesh geometry
     if (this.mesh) {
       this.mesh.geometry.dispose();
+    }
+
+    // Dispose old wireframe
+    if (this.wireframe) {
+      this.wireframe.geometry.dispose();
     }
 
     // Build geometry from faces
@@ -179,7 +191,53 @@ export class EditableMesh {
       this.mesh.geometry = geometry;
     }
 
+    // Build wireframe from face edges
+    this.rebuildWireframe();
+
     return this.mesh;
+  }
+
+  /**
+   * Rebuild the wireframe overlay
+   */
+  rebuildWireframe() {
+    // Build wireframe lines from face edges
+    const wireframePositions = [];
+
+    this.faces.forEach(face => {
+      const edges = face.getEdges();
+      edges.forEach(edge => {
+        wireframePositions.push(
+          edge.start.x, edge.start.y, edge.start.z,
+          edge.end.x, edge.end.y, edge.end.z
+        );
+      });
+    });
+
+    const wireframeGeometry = new THREE.BufferGeometry();
+    wireframeGeometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(wireframePositions, 3)
+    );
+
+    if (!this.wireframe) {
+      this.wireframe = new THREE.LineSegments(wireframeGeometry, this.wireframeMaterial);
+      this.wireframe.name = 'meshWireframe';
+      this.wireframe.renderOrder = 1; // Render on top
+    } else {
+      this.wireframe.geometry.dispose();
+      this.wireframe.geometry = wireframeGeometry;
+    }
+
+    return this.wireframe;
+  }
+
+  /**
+   * Get the wireframe object
+   * @returns {THREE.LineSegments}
+   */
+  getWireframe() {
+    return this.wireframe;
   }
 
   /**
@@ -315,6 +373,12 @@ export class EditableMesh {
     if (this.mesh) {
       this.mesh.geometry.dispose();
       this.mesh.material.dispose();
+    }
+    if (this.wireframe) {
+      this.wireframe.geometry.dispose();
+    }
+    if (this.wireframeMaterial) {
+      this.wireframeMaterial.dispose();
     }
   }
 }

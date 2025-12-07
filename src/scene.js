@@ -52,14 +52,26 @@ export class SceneManager {
     this.controls.dampingFactor = 0.1;
     this.controls.enablePan = true;
     this.controls.enableZoom = true;
-    this.controls.minDistance = 1;
+    this.controls.minDistance = 0.5;
     this.controls.maxDistance = 50;
+
+    // Mouse button configuration:
+    // LEFT = rotate, MIDDLE = pan, RIGHT = zoom
+    this.controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.PAN,
+      RIGHT: THREE.MOUSE.DOLLY
+    };
 
     // Touch settings for mobile
     this.controls.touches = {
       ONE: THREE.TOUCH.ROTATE,
       TWO: THREE.TOUCH.DOLLY_PAN
     };
+
+    // Pan settings
+    this.controls.panSpeed = 1.0;
+    this.controls.screenSpacePanning = true; // Pan parallel to screen
   }
 
   initLights() {

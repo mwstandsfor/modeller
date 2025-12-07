@@ -160,6 +160,9 @@ class App {
       }
       if (this.editableMesh) {
         this.scene.remove(this.editableMesh.mesh);
+        if (this.editableMesh.getWireframe()) {
+          this.scene.remove(this.editableMesh.getWireframe());
+        }
         this.editableMesh.dispose();
         this.editableMesh = null;
       }
@@ -243,7 +246,9 @@ class App {
       this.editableMesh = new EditableMesh();
       this.editableMesh.createFromDimensions(width, height, correctedTexture);
 
+      // Add mesh and wireframe to scene
       this.scene.add(this.editableMesh.mesh);
+      this.scene.add(this.editableMesh.getWireframe());
 
       this.hasMesh = true;
       this.perspectiveOverlay.deactivate();
