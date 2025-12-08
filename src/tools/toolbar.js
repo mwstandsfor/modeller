@@ -100,8 +100,8 @@ export class Toolbar {
       return;
     }
 
-    // Enter key to approve pending action
-    if (key === 'enter' && this.app.pendingAction) {
+    // Spacebar to approve pending action
+    if (key === ' ' && this.app.pendingAction) {
       e.preventDefault();
       this.app.executeApprove();
       return;
@@ -122,7 +122,7 @@ export class Toolbar {
         case 'e':
           if (!this.btnExtrude.disabled) this.app.setMode(Modes.EXTRUDE);
           break;
-        case 'i':
+        case 'f':
           if (!this.btnInset.disabled) this.app.setMode(Modes.INSET);
           break;
         case 'g':

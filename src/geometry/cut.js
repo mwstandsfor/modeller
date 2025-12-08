@@ -305,12 +305,23 @@ export class CutOverlay {
 
     if (!result) {
       // Allow 3D rotation when clicking on empty space
+      // Temporarily disable pointer events on overlay to let OrbitControls receive events
+      this.canvas.style.pointerEvents = 'none';
       this.sceneManager.setControlsEnabled(true);
       this.isRotating = true;
+
+      // Listen for pointerup on document since overlay won't receive it
+      const onDocumentPointerUp = () => {
+        this.isRotating = false;
+        this.canvas.style.pointerEvents = 'auto';
+        document.removeEventListener('pointerup', onDocumentPointerUp);
+      };
+      document.addEventListener('pointerup', onDocumentPointerUp);
       return;
     }
 
     // Disable rotation when interacting with mesh
+    this.canvas.style.pointerEvents = 'auto';
     this.sceneManager.setControlsEnabled(false);
     this.isRotating = false;
 
@@ -377,10 +388,10 @@ export class CutOverlay {
   }
 
   handlePointerUp(e) {
-    // Re-enable orbit controls after rotation
+    // Re-enable pointer events on overlay after rotation
     if (this.isRotating) {
       this.isRotating = false;
-      // Keep controls enabled for continued rotation
+      this.canvas.style.pointerEvents = 'auto';
     }
   }
 

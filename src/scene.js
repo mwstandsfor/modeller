@@ -283,10 +283,10 @@ export class SceneManager {
     );
     this.renderer.setScissorTest(true);
 
-    // Clear and render gizmo
-    this.renderer.setClearColor(0x1D1D20, 0);
-    this.renderer.clear();
+    // Render gizmo without clearing (transparent background)
+    this.renderer.autoClear = false;
     this.renderer.render(this.gizmoScene, this.gizmoCamera);
+    this.renderer.autoClear = true;
 
     // Restore full viewport
     this.renderer.setScissorTest(false);

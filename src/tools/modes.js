@@ -23,14 +23,10 @@ export const ModeDescriptions = {
 };
 
 /**
- * Mode instructions
+ * Mode instructions (only shown for perspective mode)
  */
 export const ModeInstructions = {
-  [Modes.PERSPECTIVE]: 'Step 1: Draw a line along a horizontal edge in your image',
-  [Modes.CUT]: 'Tap an edge to start the cut line',
-  [Modes.SELECT]: 'Tap a face to select it for extrusion',
-  [Modes.EXTRUDE]: 'Drag up to extrude, down to intrude',
-  [Modes.INSET]: 'Drag to adjust inset thickness'
+  [Modes.PERSPECTIVE]: 'Step 1: Draw a line along a horizontal edge in your image'
 };
 
 /**
