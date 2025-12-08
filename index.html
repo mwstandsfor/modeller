@@ -9,7 +9,6 @@
   <title>ImageModel</title>
   <link rel="stylesheet" href="/src/styles/main.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <!-- <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=add_photo_alternate,drive_folder_upload,photo_prints,keyboard_return,undo,redo,step_over,border_all,content_cut,step_out,select_all,arrow_selector_tool,photo_camera,grid_4x4,browse" /> -->
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
@@ -106,33 +105,9 @@
       <!-- 2D Overlay for perspective lines -->
       <canvas id="overlay" style="display: none;"></canvas>
 
-      <!-- Mode indicator / feedback -->
-      <div id="mode-bar" style="display: none;">
-        <span id="current-mode"></span>
-      </div>
-
       <!-- Instructions tooltip -->
       <div id="instructions" style="display: none;"></div>
     </main>
-
-    <!-- Axis Gizmo -->
-    <div id="axis-gizmo">
-      <svg viewBox="0 0 74 73" width="74" height="73">
-        <!-- Y axis (green) - vertical up -->
-        <line x1="37" y1="44" x2="37" y2="8" stroke="#629600" stroke-width="2"/>
-        <circle cx="37" cy="8" r="8" fill="#629600"/>
-        <text x="37" y="12" text-anchor="middle" fill="#1E2F00" font-size="10" font-weight="700">Y</text>
-
-        <!-- X axis (red) - diagonal right -->
-        <line x1="37" y1="44" x2="60" y2="37" stroke="#EA1941" stroke-width="2"/>
-        <circle cx="60" cy="37" r="8" fill="#EA1941"/>
-        <text x="60" y="41" text-anchor="middle" fill="#570011" font-size="10" font-weight="700">X</text>
-
-        <!-- Z axis (blue) - into screen (when visible) -->
-        <circle cx="37" cy="44" r="8" fill="#2870DF"/>
-        <text x="37" y="48" text-anchor="middle" fill="#002763" font-size="10" font-weight="700">Z</text>
-      </svg>
-    </div>
   </div>
 
   <!-- Hidden file input -->

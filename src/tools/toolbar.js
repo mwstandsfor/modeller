@@ -18,9 +18,7 @@ export class Toolbar {
     this.btnUndo = document.getElementById('btn-undo');
     this.btnRedo = document.getElementById('btn-redo');
 
-    // Mode indicator
-    this.modeBar = document.getElementById('mode-bar');
-    this.currentMode = document.getElementById('current-mode');
+    // Instructions tooltip
     this.instructions = document.getElementById('instructions');
 
     // File input
@@ -166,14 +164,6 @@ export class Toolbar {
     this.toolButtons.forEach(({ btn, mode }) => {
       btn.classList.toggle('active', currentMode === mode);
     });
-
-    // Update mode bar (shown during operations)
-    if (state.modeDescription && currentMode !== Modes.IDLE && currentMode !== Modes.SELECT) {
-      this.currentMode.textContent = state.modeDescription;
-      this.modeBar.style.display = 'block';
-    } else {
-      this.modeBar.style.display = 'none';
-    }
 
     // Update instructions
     if (state.instructions) {

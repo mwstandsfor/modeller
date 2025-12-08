@@ -142,6 +142,7 @@ export class SceneManager {
 
   /**
    * Create axis orientation gizmo (renders in corner)
+   * Design: colored circles with axis letters, connected by lines
    */
   createAxisGizmo() {
     // Create a separate scene for the gizmo
@@ -151,86 +152,81 @@ export class SceneManager {
     this.gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
     this.gizmoCamera.position.set(0, 0, 3);
 
-    const gizmoSize = 0.8;
+    const lineLength = 0.6;
 
-    // X axis - Red cone + line
-    const xGroup = new THREE.Group();
+    // Colors matching the Figma design
+    const colors = {
+      x: { main: 0xEA1941, dark: 0x570011 },  // Red
+      y: { main: 0x629600, dark: 0x1E2F00 },  // Green
+      z: { main: 0x2870DF, dark: 0x002763 }   // Blue
+    };
+
+    // X axis line
     const xLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(gizmoSize, 0, 0)
+        new THREE.Vector3(lineLength, 0, 0)
       ]),
-      new THREE.LineBasicMaterial({ color: 0xff4444, linewidth: 2 })
+      new THREE.LineBasicMaterial({ color: colors.x.main, linewidth: 2 })
     );
-    const xCone = new THREE.Mesh(
-      new THREE.ConeGeometry(0.08, 0.2, 8),
-      new THREE.MeshBasicMaterial({ color: 0xff4444 })
-    );
-    xCone.position.set(gizmoSize, 0, 0);
-    xCone.rotation.z = -Math.PI / 2;
-    xGroup.add(xLine, xCone);
-    this.gizmoScene.add(xGroup);
+    this.gizmoScene.add(xLine);
 
-    // Y axis - Green
-    const yGroup = new THREE.Group();
+    // Y axis line
     const yLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, gizmoSize, 0)
+        new THREE.Vector3(0, lineLength, 0)
       ]),
-      new THREE.LineBasicMaterial({ color: 0x44ff44, linewidth: 2 })
+      new THREE.LineBasicMaterial({ color: colors.y.main, linewidth: 2 })
     );
-    const yCone = new THREE.Mesh(
-      new THREE.ConeGeometry(0.08, 0.2, 8),
-      new THREE.MeshBasicMaterial({ color: 0x44ff44 })
-    );
-    yCone.position.set(0, gizmoSize, 0);
-    yGroup.add(yLine, yCone);
-    this.gizmoScene.add(yGroup);
+    this.gizmoScene.add(yLine);
 
-    // Z axis - Blue
-    const zGroup = new THREE.Group();
+    // Z axis line
     const zLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, 0, gizmoSize)
+        new THREE.Vector3(0, 0, lineLength)
       ]),
-      new THREE.LineBasicMaterial({ color: 0x4444ff, linewidth: 2 })
+      new THREE.LineBasicMaterial({ color: colors.z.main, linewidth: 2 })
     );
-    const zCone = new THREE.Mesh(
-      new THREE.ConeGeometry(0.08, 0.2, 8),
-      new THREE.MeshBasicMaterial({ color: 0x4444ff })
-    );
-    zCone.position.set(0, 0, gizmoSize);
-    zCone.rotation.x = Math.PI / 2;
-    zGroup.add(zLine, zCone);
-    this.gizmoScene.add(zGroup);
+    this.gizmoScene.add(zLine);
 
-    // Labels
-    this.createGizmoLabel('X', new THREE.Vector3(gizmoSize + 0.2, 0, 0), 0xff4444);
-    this.createGizmoLabel('Y', new THREE.Vector3(0, gizmoSize + 0.2, 0), 0x44ff44);
-    this.createGizmoLabel('Z', new THREE.Vector3(0, 0, gizmoSize + 0.2), 0x4444ff);
+    // Create circle labels at end of each axis
+    this.createGizmoCircle('X', new THREE.Vector3(lineLength + 0.15, 0, 0), colors.x);
+    this.createGizmoCircle('Y', new THREE.Vector3(0, lineLength + 0.15, 0), colors.y);
+    this.createGizmoCircle('Z', new THREE.Vector3(0, 0, lineLength + 0.15), colors.z);
   }
 
   /**
-   * Create a text label for the gizmo
+   * Create a circular label with letter for the gizmo
    */
-  createGizmoLabel(text, position, color) {
+  createGizmoCircle(text, position, colors) {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-    ctx.font = 'bold 48px sans-serif';
+
+    // Draw filled circle
+    ctx.beginPath();
+    ctx.arc(32, 32, 28, 0, Math.PI * 2);
+    ctx.fillStyle = '#' + colors.main.toString(16).padStart(6, '0');
+    ctx.fill();
+
+    // Draw letter
+    ctx.fillStyle = '#' + colors.dark.toString(16).padStart(6, '0');
+    ctx.font = 'bold 32px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, 32, 32);
+    ctx.fillText(text, 32, 34);
 
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({ map: texture });
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true
+    });
     const sprite = new THREE.Sprite(material);
     sprite.position.copy(position);
-    sprite.scale.set(0.3, 0.3, 1);
+    sprite.scale.set(0.35, 0.35, 1);
     this.gizmoScene.add(sprite);
   }
 
