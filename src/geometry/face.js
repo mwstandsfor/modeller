@@ -89,16 +89,20 @@ export class EditableMesh {
     this.texture = null;
     this.mesh = null; // Three.js mesh
     this.wireframe = null; // Wireframe overlay
+
+    // Wireframe material - renders on top with depth test disabled
     this.wireframeMaterial = new THREE.LineBasicMaterial({
       color: 0x00ffff,
-      linewidth: 1,
+      linewidth: 2,
       transparent: true,
-      opacity: 0.8
+      opacity: 1.0,
+      depthTest: false  // Always render on top
     });
   }
 
   /**
    * Create a simple quad mesh from dimensions
+   * Centered on origin in XY plane
    * @param {number} width
    * @param {number} height
    * @param {THREE.Texture} texture
@@ -106,15 +110,16 @@ export class EditableMesh {
   createFromDimensions(width, height, texture) {
     this.texture = texture;
 
-    // Create a single quad face
+    // Create a single quad face - CENTERED on origin
     const halfW = width / 2;
     const halfH = height / 2;
 
+    // Vertices in XY plane, centered at origin
     const vertices = [
-      new THREE.Vector3(-halfW, 0, 0),     // Bottom-left
-      new THREE.Vector3(halfW, 0, 0),      // Bottom-right
-      new THREE.Vector3(halfW, height, 0), // Top-right
-      new THREE.Vector3(-halfW, height, 0) // Top-left
+      new THREE.Vector3(-halfW, -halfH, 0), // Bottom-left
+      new THREE.Vector3(halfW, -halfH, 0),  // Bottom-right
+      new THREE.Vector3(halfW, halfH, 0),   // Top-right
+      new THREE.Vector3(-halfW, halfH, 0)   // Top-left
     ];
 
     const uvs = [
@@ -177,12 +182,8 @@ export class EditableMesh {
 
     // Create or update mesh
     if (!this.mesh) {
-      const material = new THREE.MeshStandardMaterial({
-        map: this.texture,
-        side: THREE.DoubleSide,
-        roughness: 0.8,
-        metalness: 0.1
-      });
+      // Create material with back-face darkening
+      const material = this.createBackfaceDarkenMaterial(this.texture);
 
       this.mesh = new THREE.Mesh(geometry, material);
       this.mesh.name = 'editableMesh';
@@ -195,6 +196,48 @@ export class EditableMesh {
     this.rebuildWireframe();
 
     return this.mesh;
+  }
+
+  /**
+   * Create a material that darkens the back face (50% opacity overlay)
+   * @param {THREE.Texture} texture
+   * @returns {THREE.ShaderMaterial}
+   */
+  createBackfaceDarkenMaterial(texture) {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: texture },
+        backfaceOpacity: { value: 0.5 }  // 50% darkening on back face
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D map;
+        uniform float backfaceOpacity;
+        varying vec2 vUv;
+
+        void main() {
+          vec4 texColor = texture2D(map, vUv);
+
+          // Check if this is the back face
+          if (!gl_FrontFacing) {
+            // Darken the back face with black overlay
+            texColor.rgb = mix(texColor.rgb, vec3(0.0), backfaceOpacity);
+          }
+
+          gl_FragColor = texColor;
+        }
+      `,
+      side: THREE.DoubleSide,
+      transparent: false
+    });
+
+    return material;
   }
 
   /**

@@ -338,3 +338,77 @@ body {
     justify-content: center;
   }
 }
+
+/* Approve Button */
+.approve-btn {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 32px;
+  background: #9b59b6;  /* Purple */
+  border: none;
+  border-radius: 30px;  /* Fully rounded */
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(155, 89, 182, 0.4);
+  transition: all 0.2s ease;
+  z-index: 100;
+}
+
+.approve-btn:hover {
+  background: #a569bd;
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: 0 6px 25px rgba(155, 89, 182, 0.5);
+}
+
+.approve-btn:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+.approve-icon {
+  font-size: 20px;
+}
+
+.approve-text {
+  letter-spacing: 0.5px;
+}
+
+/* Recent Images Grid */
+.recent-images-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.recent-thumb {
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.recent-thumb:hover {
+  border-color: var(--accent);
+}
+
+.recent-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Cut Preview Line */
+.cut-preview-line {
+  stroke: #9b59b6;  /* Purple */
+  stroke-width: 4;
+  stroke-linecap: round;
+}

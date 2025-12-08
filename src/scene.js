@@ -91,14 +91,147 @@ export class SceneManager {
   }
 
   initGrid() {
-    // Ground grid helper
+    // Grid aligned with XY plane (same as image plane)
     this.grid = new THREE.GridHelper(10, 20, 0x444444, 0x333333);
-    this.grid.position.y = -0.001; // Slightly below origin to avoid z-fighting
+    // Rotate to XY plane (default is XZ)
+    this.grid.rotation.x = Math.PI / 2;
+    this.grid.position.z = -0.001; // Slightly behind origin to avoid z-fighting
     this.scene.add(this.grid);
 
-    // Axis helper (small, at origin)
-    this.axisHelper = new THREE.AxesHelper(0.5);
-    this.scene.add(this.axisHelper);
+    // Create custom axis lines (thicker than default)
+    this.createAxisHelper();
+
+    // Create axis gizmo for corner display
+    this.createAxisGizmo();
+  }
+
+  /**
+   * Create thick axis lines at origin
+   */
+  createAxisHelper() {
+    const size = 1;
+
+    // X axis - Red
+    const xGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(size, 0, 0)
+    ]);
+    const xMat = new THREE.LineBasicMaterial({ color: 0xff4444, linewidth: 3 });
+    this.axisX = new THREE.Line(xGeom, xMat);
+
+    // Y axis - Green
+    const yGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, size, 0)
+    ]);
+    const yMat = new THREE.LineBasicMaterial({ color: 0x44ff44, linewidth: 3 });
+    this.axisY = new THREE.Line(yGeom, yMat);
+
+    // Z axis - Blue
+    const zGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, size)
+    ]);
+    const zMat = new THREE.LineBasicMaterial({ color: 0x4444ff, linewidth: 3 });
+    this.axisZ = new THREE.Line(zGeom, zMat);
+
+    this.scene.add(this.axisX);
+    this.scene.add(this.axisY);
+    this.scene.add(this.axisZ);
+  }
+
+  /**
+   * Create axis orientation gizmo (renders in corner)
+   */
+  createAxisGizmo() {
+    // Create a separate scene for the gizmo
+    this.gizmoScene = new THREE.Scene();
+
+    // Create gizmo camera
+    this.gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+    this.gizmoCamera.position.set(0, 0, 3);
+
+    const gizmoSize = 0.8;
+
+    // X axis - Red cone + line
+    const xGroup = new THREE.Group();
+    const xLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(gizmoSize, 0, 0)
+      ]),
+      new THREE.LineBasicMaterial({ color: 0xff4444, linewidth: 2 })
+    );
+    const xCone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.2, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff4444 })
+    );
+    xCone.position.set(gizmoSize, 0, 0);
+    xCone.rotation.z = -Math.PI / 2;
+    xGroup.add(xLine, xCone);
+    this.gizmoScene.add(xGroup);
+
+    // Y axis - Green
+    const yGroup = new THREE.Group();
+    const yLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, gizmoSize, 0)
+      ]),
+      new THREE.LineBasicMaterial({ color: 0x44ff44, linewidth: 2 })
+    );
+    const yCone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.2, 8),
+      new THREE.MeshBasicMaterial({ color: 0x44ff44 })
+    );
+    yCone.position.set(0, gizmoSize, 0);
+    yGroup.add(yLine, yCone);
+    this.gizmoScene.add(yGroup);
+
+    // Z axis - Blue
+    const zGroup = new THREE.Group();
+    const zLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, gizmoSize)
+      ]),
+      new THREE.LineBasicMaterial({ color: 0x4444ff, linewidth: 2 })
+    );
+    const zCone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.2, 8),
+      new THREE.MeshBasicMaterial({ color: 0x4444ff })
+    );
+    zCone.position.set(0, 0, gizmoSize);
+    zCone.rotation.x = Math.PI / 2;
+    zGroup.add(zLine, zCone);
+    this.gizmoScene.add(zGroup);
+
+    // Labels
+    this.createGizmoLabel('X', new THREE.Vector3(gizmoSize + 0.2, 0, 0), 0xff4444);
+    this.createGizmoLabel('Y', new THREE.Vector3(0, gizmoSize + 0.2, 0), 0x44ff44);
+    this.createGizmoLabel('Z', new THREE.Vector3(0, 0, gizmoSize + 0.2), 0x4444ff);
+  }
+
+  /**
+   * Create a text label for the gizmo
+   */
+  createGizmoLabel(text, position, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+    ctx.font = 'bold 48px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 32, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(material);
+    sprite.position.copy(position);
+    sprite.scale.set(0.3, 0.3, 1);
+    this.gizmoScene.add(sprite);
   }
 
   handleResize() {
@@ -114,7 +247,53 @@ export class SceneManager {
   animate() {
     requestAnimationFrame(this.animate);
     this.controls.update();
+
+    // Render main scene
     this.renderer.render(this.scene, this.camera);
+
+    // Render axis gizmo in corner
+    this.renderGizmo();
+  }
+
+  /**
+   * Render the axis gizmo in the bottom-left corner
+   */
+  renderGizmo() {
+    if (!this.gizmoScene || !this.gizmoCamera) return;
+
+    // Sync gizmo camera rotation with main camera
+    this.gizmoCamera.position.set(0, 0, 3);
+    this.gizmoCamera.position.applyQuaternion(this.camera.quaternion);
+    this.gizmoCamera.lookAt(0, 0, 0);
+
+    // Set viewport for gizmo (bottom-left corner)
+    const gizmoSize = 120;
+    const margin = 10;
+
+    // Save current state
+    this.renderer.setViewport(
+      margin,
+      margin,
+      gizmoSize,
+      gizmoSize
+    );
+    this.renderer.setScissor(
+      margin,
+      margin,
+      gizmoSize,
+      gizmoSize
+    );
+    this.renderer.setScissorTest(true);
+
+    // Clear and render gizmo
+    this.renderer.setClearColor(0x1a1a1a, 0.8);
+    this.renderer.clear();
+    this.renderer.render(this.gizmoScene, this.gizmoCamera);
+
+    // Restore full viewport
+    this.renderer.setScissorTest(false);
+    const container = this.canvas.parentElement;
+    this.renderer.setViewport(0, 0, container.clientWidth, container.clientHeight);
   }
 
   /**
@@ -160,10 +339,11 @@ export class SceneManager {
   }
 
   /**
-   * Reset camera to default position
+   * Reset camera to default position (front view of XY plane)
    */
   resetCamera() {
-    this.camera.position.set(0, 2, 5);
+    // Position camera in front of the XY plane, looking at origin
+    this.camera.position.set(0, 0, 4);
     this.camera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();

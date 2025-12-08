@@ -187,12 +187,16 @@ export class CutOverlay {
     this.isActive = false;
 
     // Style
-    this.lineColor = '#ffcc00';       // Yellow for cut line
+    this.lineColor = '#9b59b6';       // Purple for cut line
     this.edgeColor = '#00ffff';       // Cyan for edge highlight
     this.invalidColor = '#ff4444';    // Red for invalid
 
     // Callbacks
     this.onCutComplete = null;
+    this.onReady = null;  // Called when cut is ready for approval
+
+    // Pending cut data
+    this.pendingCut = null;
 
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -298,16 +302,43 @@ export class CutOverlay {
       this.startFace = result.face;
       this.startPoint = this.worldToScreen(result.edge.point);
     } else {
-      // Second click - complete cut if valid
+      // Second click - store pending cut if valid and signal ready
       if (result.face === this.startFace &&
           result.edge.edge.startIndex !== this.startEdge.edge.startIndex) {
-        if (this.onCutComplete) {
-          this.onCutComplete(this.startFace, this.startEdge, result.edge);
+        this.pendingCut = {
+          face: this.startFace,
+          startEdge: this.startEdge,
+          endEdge: result.edge
+        };
+        if (this.onReady) {
+          this.onReady(this.pendingCut);
         }
+      } else {
+        this.reset();
       }
-      this.reset();
     }
 
+    this.draw();
+  }
+
+  /**
+   * Execute the pending cut
+   */
+  executePendingCut() {
+    if (this.pendingCut && this.onCutComplete) {
+      this.onCutComplete(this.pendingCut.face, this.pendingCut.startEdge, this.pendingCut.endEdge);
+    }
+    this.pendingCut = null;
+    this.reset();
+    this.draw();
+  }
+
+  /**
+   * Cancel the pending cut
+   */
+  cancelPendingCut() {
+    this.pendingCut = null;
+    this.reset();
     this.draw();
   }
 

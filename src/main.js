@@ -35,15 +35,33 @@ class App {
     // Initialize tools
     this.perspectiveOverlay = new PerspectiveOverlay(this.overlayCanvas, this.scene);
     this.perspectiveOverlay.onComplete = (lines) => this.onPerspectiveComplete(lines);
+    this.perspectiveOverlay.onReady = (lines) => {
+      this.pendingPerspectiveLines = lines;
+      this.showApproveButton(() => {
+        const lines = this.pendingPerspectiveLines;
+        this.pendingPerspectiveLines = null;
+        this.perspectiveOverlay.onComplete(lines);
+      }, 'Apply');
+    };
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
     this.cutOverlay.onCutComplete = (face, startEdge, endEdge) => this.onCutComplete(face, startEdge, endEdge);
+    this.cutOverlay.onReady = () => {
+      this.showApproveButton(() => {
+        this.cutOverlay.executePendingCut();
+      }, 'Cut');
+    };
 
     this.selectTool = new SelectTool(this.scene);
     this.selectTool.onSelect = (face) => this.onFaceSelected(face);
 
     this.extrudeTool = new ExtrudeTool(this.scene);
     this.extrudeTool.onExtrudeComplete = (face, distance) => this.onExtrudeComplete(face, distance);
+    this.extrudeTool.onReady = () => {
+      this.showApproveButton(() => {
+        this.extrudeTool.executePendingExtrusion();
+      }, 'Extrude');
+    };
 
     // State
     this.imagePlane = null;
@@ -58,8 +76,23 @@ class App {
     this.currentImageElement = null;
     this.correctedCanvas = null;
 
+    // Recent images (max 9)
+    this.recentImages = this.loadRecentImages();
+
+    // Pending action for approve button
+    this.pendingAction = null;
+    this.pendingPerspectiveLines = null;
+
+    // UI elements
+    this.approveBtn = document.getElementById('btn-approve');
+    this.recentSection = document.getElementById('recent-section');
+    this.recentImagesGrid = document.getElementById('recent-images');
+
     // Bind methods
     this.updateUI = this.updateUI.bind(this);
+
+    // Setup approve button
+    this.approveBtn.addEventListener('click', () => this.executeApprove());
 
     // Listen to mode changes
     this.modeManager.onModeChange((newMode, oldMode) => {
@@ -70,16 +103,163 @@ class App {
     // Listen to history changes
     this.history.onChange(() => this.updateUI());
 
+    // Handle visibility change (fix focus loss issue)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        // Force a re-render when tab becomes visible again
+        this.scene.handleResize();
+      }
+    });
+
     // Initial UI update
     this.updateUI();
+    this.renderRecentImages();
 
     console.log('ImageModel initialized');
+  }
+
+  /**
+   * Load recent images from localStorage
+   */
+  loadRecentImages() {
+    try {
+      const stored = localStorage.getItem('imagemodel_recent');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * Save recent images to localStorage
+   */
+  saveRecentImages() {
+    try {
+      localStorage.setItem('imagemodel_recent', JSON.stringify(this.recentImages));
+    } catch (e) {
+      console.warn('Could not save recent images');
+    }
+  }
+
+  /**
+   * Add image to recent images list
+   */
+  addToRecentImages(dataUrl, name) {
+    // Create thumbnail (resize to 100x100)
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      const ctx = canvas.getContext('2d');
+
+      // Cover fit
+      const scale = Math.max(100 / img.width, 100 / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      const x = (100 - w) / 2;
+      const y = (100 - h) / 2;
+
+      ctx.drawImage(img, x, y, w, h);
+
+      const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
+
+      // Remove if already exists
+      this.recentImages = this.recentImages.filter(r => r.name !== name);
+
+      // Add to beginning
+      this.recentImages.unshift({ name, thumbnail, dataUrl });
+
+      // Keep only 9
+      if (this.recentImages.length > 9) {
+        this.recentImages = this.recentImages.slice(0, 9);
+      }
+
+      this.saveRecentImages();
+      this.renderRecentImages();
+    };
+    img.src = dataUrl;
+  }
+
+  /**
+   * Render recent images in the sidebar
+   */
+  renderRecentImages() {
+    if (this.recentImages.length === 0) {
+      this.recentSection.style.display = 'none';
+      return;
+    }
+
+    this.recentSection.style.display = 'block';
+    this.recentImagesGrid.innerHTML = '';
+
+    this.recentImages.forEach((recent, index) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'recent-thumb';
+      thumb.innerHTML = `<img src="${recent.thumbnail}" alt="${recent.name}">`;
+      thumb.addEventListener('click', () => this.loadRecentImage(index));
+      this.recentImagesGrid.appendChild(thumb);
+    });
+  }
+
+  /**
+   * Load a recent image
+   */
+  async loadRecentImage(index) {
+    const recent = this.recentImages[index];
+    if (!recent) return;
+
+    // Convert dataUrl to File-like object
+    const response = await fetch(recent.dataUrl);
+    const blob = await response.blob();
+    const file = new File([blob], recent.name, { type: blob.type });
+
+    this.importImage(file);
+  }
+
+  /**
+   * Show approve button with action
+   */
+  showApproveButton(action, text = 'Apply') {
+    this.pendingAction = action;
+    this.approveBtn.querySelector('.approve-text').textContent = text;
+    this.approveBtn.style.display = 'flex';
+  }
+
+  /**
+   * Hide approve button
+   */
+  hideApproveButton() {
+    this.pendingAction = null;
+    this.approveBtn.style.display = 'none';
+  }
+
+  /**
+   * Execute pending approve action
+   */
+  executeApprove() {
+    if (this.pendingAction) {
+      this.pendingAction();
+      this.hideApproveButton();
+    }
   }
 
   /**
    * Handle mode changes
    */
   onModeChange(newMode, oldMode) {
+    // Hide approve button and cancel pending actions
+    this.hideApproveButton();
+    this.pendingPerspectiveLines = null;
+
+    // Cancel pending tool actions
+    if (this.cutOverlay.pendingCut) {
+      this.cutOverlay.cancelPendingCut();
+    }
+    if (this.extrudeTool.pendingExtrusion) {
+      this.extrudeTool.cancelPendingExtrusion();
+    }
+
     // Deactivate old mode tools
     switch (oldMode) {
       case Modes.PERSPECTIVE:
@@ -176,6 +356,9 @@ class App {
       this.currentImageElement.src = this.currentImageData;
 
       this.scene.add(mesh);
+
+      // Add to recent images
+      this.addToRecentImages(this.currentImageData, file.name);
 
       this.hasImage = true;
       this.hasMesh = false;

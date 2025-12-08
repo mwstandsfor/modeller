@@ -88,6 +88,10 @@ export class ExtrudeTool {
 
     // Callbacks
     this.onExtrudeComplete = null;
+    this.onReady = null;  // Called when extrusion is ready for approval
+
+    // Pending extrusion data
+    this.pendingExtrusion = null;
 
     // Sensitivity
     this.sensitivity = 0.01;
@@ -153,11 +157,39 @@ export class ExtrudeTool {
     // Re-enable orbit controls
     this.sceneManager.setControlsEnabled(true);
 
-    // If we moved enough, complete the extrusion
-    if (Math.abs(this.currentDistance) > 0.01 && this.onExtrudeComplete) {
-      this.onExtrudeComplete(this.selectedFace, this.currentDistance);
+    // If we moved enough, store pending and signal ready for approval
+    if (Math.abs(this.currentDistance) > 0.01) {
+      this.pendingExtrusion = {
+        face: this.selectedFace,
+        distance: this.currentDistance
+      };
+      // Keep the preview visible while waiting for approval
+      if (this.onReady) {
+        this.onReady(this.pendingExtrusion);
+      }
+    } else {
+      this.currentDistance = 0;
+      this.removePreview();
     }
+  }
 
+  /**
+   * Execute the pending extrusion
+   */
+  executePendingExtrusion() {
+    if (this.pendingExtrusion && this.onExtrudeComplete) {
+      this.onExtrudeComplete(this.pendingExtrusion.face, this.pendingExtrusion.distance);
+    }
+    this.pendingExtrusion = null;
+    this.currentDistance = 0;
+    this.removePreview();
+  }
+
+  /**
+   * Cancel the pending extrusion
+   */
+  cancelPendingExtrusion() {
+    this.pendingExtrusion = null;
     this.currentDistance = 0;
     this.removePreview();
   }

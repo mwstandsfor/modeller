@@ -31,6 +31,7 @@ export class PerspectiveOverlay {
 
     // Callbacks
     this.onComplete = null;
+    this.onReady = null;  // Called when lines are ready for approval
 
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -114,13 +115,13 @@ export class PerspectiveOverlay {
       // Save the line
       this.lines[this.currentAxis] = { ...this.currentLine };
 
-      // Move to next axis or complete
+      // Move to next axis or show approve button
       if (this.currentAxis === 'x') {
         this.currentAxis = 'y';
       } else {
-        // Both lines drawn - trigger completion
-        if (this.onComplete) {
-          this.onComplete(this.lines);
+        // Both lines drawn - signal ready for approval
+        if (this.onReady) {
+          this.onReady(this.lines);
         }
       }
     }
@@ -247,7 +248,7 @@ export class PerspectiveOverlay {
         '(e.g., corner of a building, door frame)'
       ];
     } else {
-      instructions = ['Processing perspective correction...'];
+      instructions = ['Click Apply to correct perspective'];
     }
 
     // Background
