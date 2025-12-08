@@ -17,11 +17,10 @@ export class Toolbar {
     this.btnInset = document.getElementById('btn-inset');
     this.btnUndo = document.getElementById('btn-undo');
     this.btnRedo = document.getElementById('btn-redo');
-    this.toggleGrid = document.getElementById('toggle-grid');
-    this.bgColor = document.getElementById('bg-color');
 
     // Mode indicator
-    this.modeBar = document.getElementById('current-mode');
+    this.modeBar = document.getElementById('mode-bar');
+    this.currentMode = document.getElementById('current-mode');
     this.instructions = document.getElementById('instructions');
 
     // File input
@@ -76,16 +75,6 @@ export class Toolbar {
       this.app.redo();
     });
 
-    // Grid toggle
-    this.toggleGrid.addEventListener('change', (e) => {
-      this.app.setGridSnap(e.target.checked);
-    });
-
-    // Background color
-    this.bgColor.addEventListener('input', (e) => {
-      this.app.setBackgroundColor(e.target.value);
-    });
-
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       this.handleKeydown(e);
@@ -113,6 +102,13 @@ export class Toolbar {
       return;
     }
 
+    // Enter key to approve pending action
+    if (key === 'enter' && this.app.pendingAction) {
+      e.preventDefault();
+      this.app.executeApprove();
+      return;
+    }
+
     // Tool shortcuts (when not holding ctrl)
     if (!ctrl) {
       switch (key) {
@@ -132,11 +128,7 @@ export class Toolbar {
           if (!this.btnInset.disabled) this.app.setMode(Modes.INSET);
           break;
         case 'g':
-          this.toggleGrid.checked = !this.toggleGrid.checked;
-          this.app.setGridSnap(this.toggleGrid.checked);
-          break;
-        case 'escape':
-          this.app.setMode(Modes.IDLE);
+          this.app.toggleGridVisibility();
           break;
       }
     }
@@ -175,12 +167,20 @@ export class Toolbar {
       btn.classList.toggle('active', currentMode === mode);
     });
 
-    // Update mode bar text
-    this.modeBar.textContent = state.modeDescription;
+    // Update mode bar (shown during operations)
+    if (state.modeDescription && currentMode !== Modes.IDLE && currentMode !== Modes.SELECT) {
+      this.currentMode.textContent = state.modeDescription;
+      this.modeBar.style.display = 'block';
+    } else {
+      this.modeBar.style.display = 'none';
+    }
 
     // Update instructions
     if (state.instructions) {
-      this.instructions.textContent = state.instructions;
+      this.instructions.innerHTML = `
+        <h4>${state.modeDescription}</h4>
+        <p>${state.instructions}</p>
+      `;
       this.instructions.style.display = 'block';
     } else {
       this.instructions.style.display = 'none';

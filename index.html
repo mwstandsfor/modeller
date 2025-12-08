@@ -3,92 +3,98 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#1a1a1a">
+  <meta name="theme-color" content="#1D1D20">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ImageModel</title>
   <link rel="stylesheet" href="/src/styles/main.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=add_photo_alternate,drive_folder_upload,photo_prints,keyboard_return,undo,redo,step_over,border_all,content_cut,step_out,select_all,arrow_selector_tool,photo_camera,grid_4x4,browse" />
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
   <div id="app">
-    <!-- Toolbar -->
-    <aside id="toolbar">
-      <div class="toolbar-section">
-        <h2 class="toolbar-title">ImageModel</h2>
-      </div>
-
-      <div class="toolbar-section">
-        <h3 class="section-title">File</h3>
-        <button id="btn-import" class="tool-btn" title="Import Image">
-          <span class="icon">&#128193;</span>
-          <span class="label">Import</span>
+    <!-- Top Left Bar -->
+    <aside id="left-bar">
+      <div class="bar-container">
+        <button id="btn-import" class="icon-btn" title="Import Image">
+          <span class="material-symbols-outlined">add_photo_alternate</span>
         </button>
-        <button id="btn-export" class="tool-btn" disabled title="Export OBJ">
-          <span class="icon">&#128190;</span>
-          <span class="label">Export</span>
+        <button id="btn-export" class="icon-btn" disabled title="Export OBJ">
+          <span class="material-symbols-outlined">drive_folder_upload</span>
+        </button>
+        <button id="btn-history" class="icon-btn" title="History">
+          <span class="material-symbols-outlined">photo_prints</span>
         </button>
       </div>
 
-      <!-- Recent Images -->
-      <div class="toolbar-section" id="recent-section" style="display: none;">
-        <h3 class="section-title">Recent</h3>
-        <div id="recent-images" class="recent-images-grid">
+      <div class="bar-divider"></div>
+
+      <!-- Recent Images Panel -->
+      <div id="recent-panel" class="bar-container" style="display: none;">
+        <div id="recent-images">
           <!-- Thumbnails will be added here -->
         </div>
       </div>
+    </aside>
 
-      <div class="toolbar-section">
-        <h3 class="section-title">Tools</h3>
-        <button id="btn-perspective" class="tool-btn" disabled title="Perspective Correction">
-          <span class="icon">&#9638;</span>
-          <span class="label">Perspective</span>
-        </button>
-        <button id="btn-cut" class="tool-btn" disabled title="Cut Faces">
-          <span class="icon">&#9986;</span>
-          <span class="label">Cut</span>
-        </button>
-        <button id="btn-select" class="tool-btn" disabled title="Select Faces">
-          <span class="icon">&#9754;</span>
-          <span class="label">Select</span>
-        </button>
-        <button id="btn-extrude" class="tool-btn" disabled title="Extrude/Intrude">
-          <span class="icon">&#8597;</span>
-          <span class="label">Extrude</span>
-        </button>
-        <button id="btn-inset" class="tool-btn" disabled title="Inset Face">
-          <span class="icon">&#9635;</span>
-          <span class="label">Inset</span>
-        </button>
-      </div>
+    <!-- Action Bar (Bottom Left) -->
+    <aside id="action-bar">
+      <!-- Skip button (shown during perspective mode) -->
+      <button id="btn-skip" class="icon-btn skip-btn" style="display: none;" title="Skip (ESC)">
+        <span class="material-symbols-outlined">step_over</span>
+      </button>
+      <!-- Enter/Confirm button -->
+      <button id="btn-approve" class="icon-btn enter-btn" style="display: none;" title="Confirm (Enter)">
+        <span class="material-symbols-outlined">keyboard_return</span>
+      </button>
+      <button id="btn-undo" class="icon-btn" disabled title="Undo">
+        <span class="material-symbols-outlined">undo</span>
+      </button>
+      <button id="btn-redo" class="icon-btn" disabled title="Redo">
+        <span class="material-symbols-outlined">redo</span>
+      </button>
+    </aside>
 
-      <div class="toolbar-section">
-        <h3 class="section-title">Options</h3>
-        <label class="toggle-option">
-          <input type="checkbox" id="toggle-grid">
-          <span>Grid Snap</span>
-        </label>
-      </div>
-
-      <div class="toolbar-section">
-        <h3 class="section-title">Edit</h3>
-        <div class="btn-group">
-          <button id="btn-undo" class="tool-btn small" disabled title="Undo">
-            <span class="icon">&#8630;</span>
+    <!-- Bottom Toolbar -->
+    <nav id="bottom-bar">
+      <div class="bar-container horizontal">
+        <div class="tool-group">
+          <button id="btn-perspective" class="icon-btn" disabled title="Align/Perspective">
+            <span class="material-symbols-outlined">border_all</span>
           </button>
-          <button id="btn-redo" class="tool-btn small" disabled title="Redo">
-            <span class="icon">&#8631;</span>
+          <button id="btn-cut" class="icon-btn" disabled title="Cut">
+            <span class="material-symbols-outlined">content_cut</span>
+          </button>
+          <button id="btn-extrude" class="icon-btn" disabled title="Extrude">
+            <span class="material-symbols-outlined">step_out</span>
+          </button>
+          <button id="btn-inset" class="icon-btn" disabled title="Inset">
+            <span class="material-symbols-outlined">select_all</span>
           </button>
         </div>
+        <div class="tool-divider"></div>
+        <button id="btn-select" class="icon-btn" disabled title="Select">
+          <span class="material-symbols-outlined">arrow_selector_tool</span>
+        </button>
       </div>
+    </nav>
 
-      <div class="toolbar-section">
-        <h3 class="section-title">View</h3>
-        <label class="color-option">
-          <span>Background</span>
-          <input type="color" id="bg-color" value="#2d2d2d">
-        </label>
+    <!-- Top Right Bar -->
+    <aside id="right-bar">
+      <div class="bar-container">
+        <button id="btn-camera-reset" class="icon-btn" title="Reset Camera">
+          <span class="material-symbols-outlined">photo_camera</span>
+        </button>
+      </div>
+      <div class="bar-divider-h"></div>
+      <div class="bar-container">
+        <button id="btn-grid" class="icon-btn" title="Toggle Grid">
+          <span class="material-symbols-outlined">grid_4x4</span>
+        </button>
+        <button id="btn-snap" class="icon-btn" title="Snap to Grid">
+          <span class="material-symbols-outlined">browse</span>
+        </button>
       </div>
     </aside>
 
@@ -99,30 +105,33 @@
       <!-- 2D Overlay for perspective lines -->
       <canvas id="overlay" style="display: none;"></canvas>
 
-      <!-- Mode indicator -->
-      <div id="mode-bar">
-        <span id="current-mode">Ready - Import an image to begin</span>
+      <!-- Mode indicator / feedback -->
+      <div id="mode-bar" style="display: none;">
+        <span id="current-mode"></span>
       </div>
 
       <!-- Instructions tooltip -->
       <div id="instructions" style="display: none;"></div>
-
-      <!-- Approve/Confirm button -->
-      <button id="btn-approve" class="approve-btn" style="display: none;">
-        <span class="approve-icon">&#10004;</span>
-        <span class="approve-text">Apply</span>
-      </button>
-
-      <!-- Skip button (for perspective step) -->
-      <button id="btn-skip" class="skip-btn" style="display: none;">
-        <span class="skip-text">Skip</span>
-      </button>
-
-      <!-- Camera reset button -->
-      <button id="btn-camera-reset" class="camera-reset-btn" title="Reset to Front View">
-        <span class="camera-icon">&#128247;</span>
-      </button>
     </main>
+
+    <!-- Axis Gizmo -->
+    <div id="axis-gizmo">
+      <svg viewBox="0 0 74 73" width="74" height="73">
+        <!-- Y axis (green) - vertical up -->
+        <line x1="37" y1="44" x2="37" y2="8" stroke="#629600" stroke-width="2"/>
+        <circle cx="37" cy="8" r="8" fill="#629600"/>
+        <text x="37" y="12" text-anchor="middle" fill="#1E2F00" font-size="10" font-weight="700">Y</text>
+
+        <!-- X axis (red) - diagonal right -->
+        <line x1="37" y1="44" x2="60" y2="37" stroke="#EA1941" stroke-width="2"/>
+        <circle cx="60" cy="37" r="8" fill="#EA1941"/>
+        <text x="60" y="41" text-anchor="middle" fill="#570011" font-size="10" font-weight="700">X</text>
+
+        <!-- Z axis (blue) - into screen (when visible) -->
+        <circle cx="37" cy="44" r="8" fill="#2870DF"/>
+        <text x="37" y="48" text-anchor="middle" fill="#002763" font-size="10" font-weight="700">Z</text>
+      </svg>
+    </div>
   </div>
 
   <!-- Hidden file input -->

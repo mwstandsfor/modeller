@@ -1,31 +1,33 @@
-/* CSS Variables - Dark Theme (Blender-inspired) */
+/* CSS Variables - Dark Theme (Figma Design) */
 :root {
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #242424;
-  --bg-tertiary: #2d2d2d;
-  --bg-hover: #3d3d3d;
-  --bg-active: #4a4a4a;
+  --bg-primary: #1D1D20;
+  --bg-container: #000000;
+  --bg-button: #111111;
+  --bg-button-active: #3A3B4A;
+  --bg-button-hover: #222222;
 
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --text-muted: #606060;
+  --text-primary: #E3E3E3;
+  --text-secondary: #868686;
+  --text-muted: #494950;
 
-  --accent: #4a90d9;
-  --accent-hover: #5ba0e9;
-  --accent-active: #3a80c9;
+  --accent: #9b59b6;  /* Purple for actions */
+  --accent-hover: #a569bd;
 
-  --border: #3a3a3a;
-  --border-light: #4a4a4a;
+  --border: #494950;
+  --border-opacity: rgba(73, 73, 80, 0.5);
 
-  --success: #4caf50;
-  --warning: #ff9800;
-  --error: #f44336;
-
-  --toolbar-width: 180px;
-  --mode-bar-height: 32px;
+  --axis-x: #EA1941;
+  --axis-y: #629600;
+  --axis-z: #2870DF;
 
   --radius-sm: 4px;
   --radius-md: 6px;
+
+  --button-size: 42px;
+  --button-enter-height: 64px;
+  --icon-size: 24px;
+  --container-padding: 4px;
+  --button-gap: 4px;
 
   --transition: 150ms ease;
 }
@@ -45,175 +47,259 @@ html, body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   background: var(--bg-primary);
   color: var(--text-primary);
   width: 100vw;
   height: 100vh;
-  height: 100dvh; /* Dynamic viewport height for mobile */
+  height: 100dvh;
+}
+
+/* Material Symbols */
+.material-symbols-outlined {
+  font-size: var(--icon-size);
+  color: var(--text-secondary);
+  user-select: none;
 }
 
 #app {
-  display: flex;
+  position: relative;
   width: 100%;
   height: 100%;
 }
 
-/* Toolbar */
-#toolbar {
-  width: var(--toolbar-width);
-  min-width: var(--toolbar-width);
-  height: 100%;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+/* ========================================
+   Bar Containers
+   ======================================== */
+
+.bar-container {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  align-items: center;
+  padding: var(--container-padding);
+  gap: var(--button-gap);
+  background: var(--bg-container);
+  border-radius: var(--radius-md);
 }
 
-.toolbar-section {
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
+.bar-container.horizontal {
+  flex-direction: row;
 }
 
-.toolbar-section:last-child {
-  border-bottom: none;
+.bar-divider {
+  width: 30px;
+  height: 0;
+  border: none;
+  margin: 5px 0;
 }
 
-.toolbar-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+.bar-divider-h {
+  width: 30px;
+  height: 0;
+  border-top: 2px solid var(--text-secondary);
+  opacity: 0.5;
+  margin: 6px 0;
 }
 
-.section-title {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
+.tool-divider {
+  width: 0;
+  height: 30px;
+  border-left: 2px solid var(--text-secondary);
+  opacity: 0.5;
+  margin: 0 6px;
 }
 
-/* Tool Buttons */
-.tool-btn {
+.tool-group {
+  display: flex;
+  flex-direction: row;
+  gap: var(--button-gap);
+}
+
+/* ========================================
+   Icon Buttons
+   ======================================== */
+
+.icon-btn {
+  width: var(--button-size);
+  height: var(--button-size);
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  margin-bottom: 4px;
-  background: transparent;
-  border: 1px solid transparent;
+  justify-content: center;
+  background: var(--bg-button);
+  border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 13px;
   cursor: pointer;
-  transition: all var(--transition);
-  text-align: left;
+  transition: background var(--transition);
 }
 
-.tool-btn:last-child {
-  margin-bottom: 0;
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-button-hover);
 }
 
-.tool-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--border-light);
+.icon-btn:hover:not(:disabled) .material-symbols-outlined {
+  color: var(--text-primary);
 }
 
-.tool-btn:active:not(:disabled) {
-  background: var(--bg-active);
+.icon-btn:active:not(:disabled) {
+  background: var(--bg-button-active);
 }
 
-.tool-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+.icon-btn.active {
+  background: var(--bg-button-active);
 }
 
-.tool-btn:disabled {
+.icon-btn.active .material-symbols-outlined {
+  color: var(--text-primary);
+}
+
+.icon-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.tool-btn .icon {
-  font-size: 16px;
-  width: 20px;
-  text-align: center;
+/* Enter button (taller) */
+.icon-btn.enter-btn {
+  height: var(--button-enter-height);
 }
 
-.tool-btn.small {
-  padding: 6px 10px;
-  justify-content: center;
+.icon-btn.enter-btn.ready {
+  background: var(--accent);
 }
 
-.tool-btn.small .icon {
-  font-size: 18px;
+.icon-btn.enter-btn.ready .material-symbols-outlined {
+  color: white;
 }
 
-.btn-group {
+.icon-btn.enter-btn.ready:hover {
+  background: var(--accent-hover);
+}
+
+/* Skip button */
+.icon-btn.skip-btn {
+  background: var(--bg-button);
+}
+
+/* ========================================
+   Left Bar (Top Left)
+   ======================================== */
+
+#left-bar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
   display: flex;
-  gap: 4px;
-}
-
-.btn-group .tool-btn {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-/* Toggle Options */
-.toggle-option {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px 0;
+  gap: 9px;
+  z-index: 100;
 }
 
-.toggle-option input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-  cursor: pointer;
+/* Recent Images Panel */
+#recent-panel {
+  max-height: 246px;
 }
 
-/* Color Picker */
-.color-option {
+#recent-images {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4.67px;
 }
 
-.color-option input[type="color"] {
-  width: 32px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: none;
-  cursor: pointer;
-}
-
-.color-option input[type="color"]::-webkit-color-swatch-wrapper {
-  padding: 2px;
-}
-
-.color-option input[type="color"]::-webkit-color-swatch {
-  border: none;
-  border-radius: 2px;
-}
-
-/* Viewport */
-#viewport {
-  flex: 1;
-  position: relative;
+.recent-thumb {
+  width: var(--button-size);
+  height: 56px;
+  border-radius: 4.67px;
   overflow: hidden;
-  background: var(--bg-tertiary);
+  cursor: pointer;
+  border: 2.33px solid var(--bg-button);
+  transition: border-color var(--transition);
+}
+
+.recent-thumb:hover {
+  border-color: var(--accent);
+}
+
+.recent-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ========================================
+   Action Bar (Bottom Left)
+   ======================================== */
+
+#action-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--button-gap);
+  z-index: 100;
+}
+
+/* ========================================
+   Bottom Bar (Tool Toolbar)
+   ======================================== */
+
+#bottom-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+}
+
+/* ========================================
+   Right Bar (Top Right)
+   ======================================== */
+
+#right-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--container-padding);
+  background: var(--bg-container);
+  border-radius: var(--radius-md);
+  z-index: 100;
+}
+
+/* ========================================
+   Axis Gizmo (Bottom Right)
+   ======================================== */
+
+#axis-gizmo {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 74px;
+  height: 73px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+#axis-gizmo svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ========================================
+   Viewport
+   ======================================== */
+
+#viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
 }
 
 #canvas {
@@ -237,243 +323,146 @@ body {
   pointer-events: auto;
 }
 
-/* Mode Bar */
+/* ========================================
+   Mode Bar (Feedback)
+   ======================================== */
+
 #mode-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: var(--mode-bar-height);
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-}
-
-#current-mode {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* Instructions Tooltip */
-#instructions {
   position: absolute;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: var(--bg-container);
   border-radius: var(--radius-md);
   padding: 8px 16px;
-  font-size: 13px;
-  color: var(--text-primary);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 100;
 }
 
-/* Scrollbar Styling */
+#current-mode {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ========================================
+   Instructions Tooltip
+   ======================================== */
+
+#instructions {
+  position: absolute;
+  top: 12px;
+  left: 80px;
+  background: var(--bg-container);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  max-width: 300px;
+  z-index: 100;
+}
+
+#instructions h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+#instructions p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* ========================================
+   Grid Overlay (CSS-based)
+   ======================================== */
+
+.grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--border-opacity) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-opacity) 1px, transparent 1px);
+  background-size: 162px 162px;
+  background-position: center center;
+}
+
+/* X and Y axis lines */
+.grid-overlay::before,
+.grid-overlay::after {
+  content: '';
+  position: absolute;
+}
+
+.grid-overlay::before {
+  /* X axis - horizontal red line */
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: #411E21;
+}
+
+.grid-overlay::after {
+  /* Y axis - vertical green line */
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: #2B351A;
+}
+
+/* ========================================
+   Scrollbar Styling
+   ======================================== */
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-hover);
+  background: var(--bg-button-hover);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-active);
+  background: var(--bg-button-active);
 }
 
-/* Selection highlight color */
 ::selection {
   background: var(--accent);
   color: white;
 }
 
-/* Mobile Adjustments */
+/* ========================================
+   Mobile Adjustments
+   ======================================== */
+
 @media (max-width: 768px) {
   :root {
-    --toolbar-width: 60px;
+    --button-size: 48px;
+    --icon-size: 28px;
   }
 
-  .toolbar-title {
-    font-size: 12px;
-    text-align: center;
-  }
-
-  .section-title {
-    display: none;
-  }
-
-  .tool-btn {
-    flex-direction: column;
-    padding: 8px 4px;
-    gap: 4px;
-  }
-
-  .tool-btn .label {
-    font-size: 10px;
-  }
-
-  .tool-btn .icon {
-    font-size: 20px;
-  }
-
-  .toggle-option span {
-    display: none;
-  }
-
-  .color-option span {
-    display: none;
-  }
-
-  .color-option {
-    justify-content: center;
+  #instructions {
+    left: 70px;
+    right: 70px;
+    max-width: none;
   }
 }
 
-/* Approve Button */
-.approve-btn {
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 32px;
-  background: #9b59b6;  /* Purple */
-  border: none;
-  border-radius: 30px;  /* Fully rounded */
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(155, 89, 182, 0.4);
-  transition: all 0.2s ease;
-  z-index: 100;
-}
+/* ========================================
+   Legacy support - hidden old toolbar
+   ======================================== */
 
-.approve-btn:hover {
-  background: #a569bd;
-  transform: translateX(-50%) scale(1.05);
-  box-shadow: 0 6px 25px rgba(155, 89, 182, 0.5);
-}
-
-.approve-btn:active {
-  transform: translateX(-50%) scale(0.98);
-}
-
-.approve-icon {
-  font-size: 20px;
-}
-
-.approve-text {
-  letter-spacing: 0.5px;
-}
-
-/* Recent Images Grid */
-.recent-images-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-}
-
-.recent-thumb {
-  aspect-ratio: 1;
-  width: 100%;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: border-color 0.2s ease;
-}
-
-.recent-thumb:hover {
-  border-color: var(--accent);
-}
-
-.recent-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Cut Preview Line */
-.cut-preview-line {
-  stroke: #9b59b6;  /* Purple */
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-
-/* Skip Button */
-.skip-btn {
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(calc(-50% - 100px));
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 30px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 100;
-}
-
-.skip-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-light);
-}
-
-.skip-btn:active {
-  transform: translateX(calc(-50% - 100px)) scale(0.98);
-}
-
-/* Camera Reset Button */
-.camera-reset-btn {
-  position: absolute;
-  bottom: 50px;
-  right: 16px;
-  width: 44px;
-  height: 44px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--text-primary);
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  z-index: 50;
-}
-
-.camera-reset-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-  transform: scale(1.1);
-}
-
-.camera-reset-btn:active {
-  transform: scale(0.95);
-}
-
-.camera-icon {
-  font-size: 22px;
+#toolbar {
+  display: none;
 }

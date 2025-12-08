@@ -95,8 +95,14 @@ class App {
     // UI elements
     this.approveBtn = document.getElementById('btn-approve');
     this.skipBtn = document.getElementById('btn-skip');
-    this.recentSection = document.getElementById('recent-section');
+    this.recentPanel = document.getElementById('recent-panel');
     this.recentImagesGrid = document.getElementById('recent-images');
+    this.historyBtn = document.getElementById('btn-history');
+    this.gridBtn = document.getElementById('btn-grid');
+    this.snapBtn = document.getElementById('btn-snap');
+
+    // Grid visibility state
+    this.gridVisible = true;
 
     // Bind methods
     this.updateUI = this.updateUI.bind(this);
@@ -110,6 +116,15 @@ class App {
     // Setup camera reset button
     const cameraResetBtn = document.getElementById('btn-camera-reset');
     cameraResetBtn.addEventListener('click', () => this.scene.resetCamera());
+
+    // Setup history button (toggle recent images panel)
+    this.historyBtn.addEventListener('click', () => this.toggleRecentPanel());
+
+    // Setup grid toggle button
+    this.gridBtn.addEventListener('click', () => this.toggleGridVisibility());
+
+    // Setup snap button
+    this.snapBtn.addEventListener('click', () => this.toggleGridSnap());
 
     // Setup ESC key to skip perspective
     document.addEventListener('keydown', (e) => {
@@ -206,16 +221,14 @@ class App {
   }
 
   /**
-   * Render recent images in the sidebar
+   * Render recent images in the panel
    */
   renderRecentImages() {
+    this.recentImagesGrid.innerHTML = '';
+
     if (this.recentImages.length === 0) {
-      this.recentSection.style.display = 'none';
       return;
     }
-
-    this.recentSection.style.display = 'block';
-    this.recentImagesGrid.innerHTML = '';
 
     this.recentImages.forEach((recent, index) => {
       const thumb = document.createElement('div');
@@ -242,12 +255,12 @@ class App {
   }
 
   /**
-   * Show approve button with action
+   * Show approve button with action (highlight enter button)
    */
   showApproveButton(action, text = 'Apply') {
     this.pendingAction = action;
-    this.approveBtn.querySelector('.approve-text').textContent = text;
     this.approveBtn.style.display = 'flex';
+    this.approveBtn.classList.add('ready');
   }
 
   /**
@@ -256,6 +269,33 @@ class App {
   hideApproveButton() {
     this.pendingAction = null;
     this.approveBtn.style.display = 'none';
+    this.approveBtn.classList.remove('ready');
+  }
+
+  /**
+   * Toggle recent images panel
+   */
+  toggleRecentPanel() {
+    const isVisible = this.recentPanel.style.display !== 'none';
+    this.recentPanel.style.display = isVisible ? 'none' : 'flex';
+    this.historyBtn.classList.toggle('active', !isVisible);
+  }
+
+  /**
+   * Toggle grid visibility
+   */
+  toggleGridVisibility() {
+    this.gridVisible = !this.gridVisible;
+    this.scene.setGridVisible(this.gridVisible);
+    this.gridBtn.classList.toggle('active', this.gridVisible);
+  }
+
+  /**
+   * Toggle grid snap
+   */
+  toggleGridSnap() {
+    this.gridSnap = !this.gridSnap;
+    this.snapBtn.classList.toggle('active', this.gridSnap);
   }
 
   /**
