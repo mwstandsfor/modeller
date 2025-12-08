@@ -14,6 +14,7 @@ export class Toolbar {
     this.btnCut = document.getElementById('btn-cut');
     this.btnSelect = document.getElementById('btn-select');
     this.btnExtrude = document.getElementById('btn-extrude');
+    this.btnInset = document.getElementById('btn-inset');
     this.btnUndo = document.getElementById('btn-undo');
     this.btnRedo = document.getElementById('btn-redo');
     this.toggleGrid = document.getElementById('toggle-grid');
@@ -31,7 +32,8 @@ export class Toolbar {
       { btn: this.btnPerspective, mode: Modes.PERSPECTIVE },
       { btn: this.btnCut, mode: Modes.CUT },
       { btn: this.btnSelect, mode: Modes.SELECT },
-      { btn: this.btnExtrude, mode: Modes.EXTRUDE }
+      { btn: this.btnExtrude, mode: Modes.EXTRUDE },
+      { btn: this.btnInset, mode: Modes.INSET }
     ];
 
     this.setupEventListeners();
@@ -126,6 +128,9 @@ export class Toolbar {
         case 'e':
           if (!this.btnExtrude.disabled) this.app.setMode(Modes.EXTRUDE);
           break;
+        case 'i':
+          if (!this.btnInset.disabled) this.app.setMode(Modes.INSET);
+          break;
         case 'g':
           this.toggleGrid.checked = !this.toggleGrid.checked;
           this.app.setGridSnap(this.toggleGrid.checked);
@@ -160,6 +165,7 @@ export class Toolbar {
     this.btnCut.disabled = !hasMesh;
     this.btnSelect.disabled = !hasMesh;
     this.btnExtrude.disabled = !hasSelection;
+    this.btnInset.disabled = !hasSelection;
     this.btnExport.disabled = !hasMesh;
     this.btnUndo.disabled = !canUndo;
     this.btnRedo.disabled = !canRedo;

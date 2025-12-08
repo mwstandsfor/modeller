@@ -11,6 +11,7 @@ import { perspectiveTransform } from './perspective/dewarp.js';
 import { CutOverlay, splitFace } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
 import { ExtrudeTool, extrudeFace } from './geometry/extrude.js';
+import { InsetTool, insetFace } from './geometry/inset.js';
 import { downloadOBJ } from './export/obj.js';
 
 /**
@@ -61,6 +62,14 @@ class App {
       this.showApproveButton(() => {
         this.extrudeTool.executePendingExtrusion();
       }, 'Extrude');
+    };
+
+    this.insetTool = new InsetTool(this.scene);
+    this.insetTool.onInsetComplete = (face, thickness) => this.onInsetComplete(face, thickness);
+    this.insetTool.onReady = () => {
+      this.showApproveButton(() => {
+        this.insetTool.executePendingInset();
+      }, 'Inset');
     };
 
     // State
@@ -263,6 +272,9 @@ class App {
     if (this.extrudeTool.pendingExtrusion) {
       this.extrudeTool.cancelPendingExtrusion();
     }
+    if (this.insetTool.pendingInset) {
+      this.insetTool.cancelPendingInset();
+    }
 
     // Deactivate old mode tools
     switch (oldMode) {
@@ -277,6 +289,9 @@ class App {
         break;
       case Modes.EXTRUDE:
         this.extrudeTool.deactivate();
+        break;
+      case Modes.INSET:
+        this.insetTool.deactivate();
         break;
     }
 
@@ -304,6 +319,13 @@ class App {
           this.extrudeTool.setMesh(this.editableMesh);
           this.extrudeTool.setSelectedFace(this.selectedFace);
           this.extrudeTool.activate(this.canvas);
+        }
+        break;
+      case Modes.INSET:
+        if (this.editableMesh && this.selectedFace) {
+          this.insetTool.setMesh(this.editableMesh);
+          this.insetTool.setSelectedFace(this.selectedFace);
+          this.insetTool.activate(this.canvas);
         }
         break;
     }
@@ -529,6 +551,43 @@ class App {
     this.updateUI();
 
     console.log('Extrusion complete');
+  }
+
+  /**
+   * Handle inset complete
+   */
+  onInsetComplete(face, thickness) {
+    console.log('Inset:', face.id, 'thickness:', thickness);
+
+    // Save state for undo
+    this.history.pushState(this.getSerializableState(), 'Inset face');
+
+    // Perform inset
+    const result = insetFace(face, thickness, this.editableMesh.nextFaceId);
+
+    // Remove original face
+    const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
+    if (faceIndex >= 0) {
+      this.editableMesh.faces.splice(faceIndex, 1);
+    }
+
+    // Add inset face and side faces
+    this.editableMesh.faces.push(result.insetFace);
+    result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
+    this.editableMesh.nextFaceId = result.nextFaceId;
+
+    // Rebuild mesh
+    this.editableMesh.rebuildMesh();
+
+    // Update selection to inset face (the center face)
+    this.selectedFace = result.insetFace;
+    this.selectTool.setMesh(this.editableMesh);
+    this.selectTool.selectFace(result.insetFace);
+    this.insetTool.setSelectedFace(result.insetFace);
+
+    this.updateUI();
+
+    console.log('Inset complete');
   }
 
   /**

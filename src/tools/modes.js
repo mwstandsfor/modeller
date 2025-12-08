@@ -6,7 +6,8 @@ export const Modes = {
   PERSPECTIVE: 'perspective',
   CUT: 'cut',
   SELECT: 'select',
-  EXTRUDE: 'extrude'
+  EXTRUDE: 'extrude',
+  INSET: 'inset'
 };
 
 /**
@@ -17,7 +18,8 @@ export const ModeDescriptions = {
   [Modes.PERSPECTIVE]: 'Draw two lines to correct perspective (X-axis, then Y-axis)',
   [Modes.CUT]: 'Click on an edge, then another edge to cut the face',
   [Modes.SELECT]: 'Click on a face to select it',
-  [Modes.EXTRUDE]: 'Drag selected face to extrude or intrude'
+  [Modes.EXTRUDE]: 'Drag selected face to extrude or intrude',
+  [Modes.INSET]: 'Drag selected face to inset'
 };
 
 /**
@@ -27,7 +29,8 @@ export const ModeInstructions = {
   [Modes.PERSPECTIVE]: 'Step 1: Draw a line along a horizontal edge in your image',
   [Modes.CUT]: 'Tap an edge to start the cut line',
   [Modes.SELECT]: 'Tap a face to select it for extrusion',
-  [Modes.EXTRUDE]: 'Drag up to extrude, down to intrude'
+  [Modes.EXTRUDE]: 'Drag up to extrude, down to intrude',
+  [Modes.INSET]: 'Drag to adjust inset thickness'
 };
 
 /**
