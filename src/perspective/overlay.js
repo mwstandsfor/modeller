@@ -304,9 +304,6 @@ export class PerspectiveOverlay {
       const color = this.getCurrentLineType() === 'x' ? this.colors.x : this.colors.y;
       this.drawLine(this.currentLine, color, null, 1.0, true);
     }
-
-    // Draw instructions
-    this.drawInstructions();
   }
 
   /**
@@ -412,80 +409,6 @@ export class PerspectiveOverlay {
     }
 
     ctx.globalAlpha = 1.0;
-  }
-
-  /**
-   * Draw instructions panel - positioned above approve button
-   */
-  drawInstructions() {
-    const ctx = this.ctx;
-    const padding = 12;
-    const lineHeight = 20;
-
-    let instructions;
-    let stepColor = this.colors.x;
-
-    if (!this.lines.x1) {
-      instructions = [
-        'Step 1 of 4: Draw first horizontal line (X-1)',
-        'Trace along a horizontal edge in your image'
-      ];
-      stepColor = this.colors.x;
-    } else if (!this.lines.x2) {
-      instructions = [
-        'Step 2 of 4: Draw second horizontal line (X-2)',
-        'Draw parallel to the first X line'
-      ];
-      stepColor = this.colors.x;
-    } else if (!this.lines.y1) {
-      instructions = [
-        'Step 3 of 4: Draw first vertical line (Y-1)',
-        'Trace along a vertical edge in your image'
-      ];
-      stepColor = this.colors.y;
-    } else if (!this.lines.y2) {
-      instructions = [
-        'Step 4 of 4: Draw second vertical line (Y-2)',
-        'Draw parallel to the first Y line'
-      ];
-      stepColor = this.colors.y;
-    } else {
-      instructions = [
-        'Tap a line to redraw it',
-        'Click Apply when ready'
-      ];
-      stepColor = '#9b59b6';
-    }
-
-    // Position above the approve button (which is at bottom: 60px)
-    const boxWidth = 320;
-    const boxHeight = padding * 2 + lineHeight * instructions.length;
-    const boxX = (this.canvas.width - boxWidth) / 2;
-    const boxY = this.canvas.height - 140 - boxHeight; // Above the approve button
-
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
-    ctx.beginPath();
-    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
-    ctx.fill();
-
-    // Border
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Text
-    instructions.forEach((text, i) => {
-      const y = boxY + padding + 14 + i * lineHeight;
-      if (i === 0) {
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillStyle = stepColor;
-      } else {
-        ctx.font = '12px sans-serif';
-        ctx.fillStyle = '#aaa';
-      }
-      ctx.textAlign = 'center';
-      ctx.fillText(text, this.canvas.width / 2, y);
-    });
   }
 
   /**

@@ -262,19 +262,21 @@ export class SceneManager {
     this.gizmoCamera.position.applyQuaternion(this.camera.quaternion);
     this.gizmoCamera.lookAt(0, 0, 0);
 
-    // Set viewport for gizmo (bottom-left corner)
-    const gizmoSize = 120;
-    const margin = 10;
+    // Set viewport for gizmo (bottom-right corner)
+    const gizmoSize = 100;
+    const margin = 12;
+    const container = this.canvas.parentElement;
+    const gizmoX = container.clientWidth - gizmoSize - margin;
 
     // Save current state
     this.renderer.setViewport(
-      margin,
+      gizmoX,
       margin,
       gizmoSize,
       gizmoSize
     );
     this.renderer.setScissor(
-      margin,
+      gizmoX,
       margin,
       gizmoSize,
       gizmoSize
@@ -282,13 +284,12 @@ export class SceneManager {
     this.renderer.setScissorTest(true);
 
     // Clear and render gizmo
-    this.renderer.setClearColor(0x1a1a1a, 0.8);
+    this.renderer.setClearColor(0x1D1D20, 0);
     this.renderer.clear();
     this.renderer.render(this.gizmoScene, this.gizmoCamera);
 
     // Restore full viewport
     this.renderer.setScissorTest(false);
-    const container = this.canvas.parentElement;
     this.renderer.setViewport(0, 0, container.clientWidth, container.clientHeight);
   }
 
