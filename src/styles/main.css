@@ -10,8 +10,8 @@
   --text-secondary: #868686;
   --text-muted: #494950;
 
-  --accent: #9b59b6;  /* Purple for actions */
-  --accent-hover: #a569bd;
+  --accent: #949DFF;  /* Purple for actions */
+  --accent-hover: #2f4791; 
 
   --border: #494950;
   --border-opacity: rgba(73, 73, 80, 0.5);
@@ -58,9 +58,15 @@ body {
 
 /* Material Symbols */
 .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
   font-size: var(--icon-size);
+  line-height: 1;
   color: var(--text-secondary);
   user-select: none;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0;
 }
 
 #app {
@@ -88,14 +94,15 @@ body {
 }
 
 .bar-divider {
-  width: 30px;
+  width: 32px;
   height: 0;
   border: none;
-  margin: 5px 0;
+  /* border-top: 2px solid var(--text-secondary); */
+  margin: 6px 0;
 }
 
 .bar-divider-h {
-  width: 30px;
+  width: 32px;
   height: 0;
   border-top: 2px solid var(--text-secondary);
   opacity: 0.5;
@@ -104,7 +111,7 @@ body {
 
 .tool-divider {
   width: 0;
-  height: 30px;
+  height: 32px;
   border-left: 2px solid var(--text-secondary);
   opacity: 0.5;
   margin: 0 6px;
@@ -203,16 +210,16 @@ body {
 #recent-images {
   display: flex;
   flex-direction: column;
-  gap: 4.67px;
+  gap: 4px;
 }
 
 .recent-thumb {
   width: var(--button-size);
   height: 56px;
-  border-radius: 4.67px;
+  border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
-  border: 2.33px solid var(--bg-button);
+  border: 2px solid var(--bg-button);
   transition: border-color var(--transition);
 }
 
@@ -278,8 +285,8 @@ body {
   position: absolute;
   bottom: 12px;
   right: 12px;
-  width: 74px;
-  height: 73px;
+  width: 72px;
+  height: 72px;
   z-index: 50;
   pointer-events: none;
 }

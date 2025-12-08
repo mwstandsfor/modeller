@@ -8,7 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ImageModel</title>
   <link rel="stylesheet" href="/src/styles/main.css">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=add_photo_alternate,drive_folder_upload,photo_prints,keyboard_return,undo,redo,step_over,border_all,content_cut,step_out,select_all,arrow_selector_tool,photo_camera,grid_4x4,browse" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <!-- <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=add_photo_alternate,drive_folder_upload,photo_prints,keyboard_return,undo,redo,step_over,border_all,content_cut,step_out,select_all,arrow_selector_tool,photo_camera,grid_4x4,browse" /> -->
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
@@ -28,7 +29,7 @@
         </button>
       </div>
 
-      <div class="bar-divider"></div>
+      <!-- <div class="bar-divider"></div> -->
 
       <!-- Recent Images Panel -->
       <div id="recent-panel" class="bar-container" style="display: none;">
@@ -41,17 +42,17 @@
     <!-- Action Bar (Bottom Left) -->
     <aside id="action-bar">
       <!-- Skip button (shown during perspective mode) -->
-      <button id="btn-skip" class="icon-btn skip-btn" style="display: none;" title="Skip (ESC)">
+      <button id="btn-skip" class="icon-btn skip-btn" style="display: none;" title="Skip [ESC]">
         <span class="material-symbols-outlined">step_over</span>
       </button>
       <!-- Enter/Confirm button -->
       <button id="btn-approve" class="icon-btn enter-btn" style="display: none;" title="Confirm (Enter)">
         <span class="material-symbols-outlined">keyboard_return</span>
       </button>
-      <button id="btn-undo" class="icon-btn" disabled title="Undo">
+      <button id="btn-undo" class="icon-btn" disabled title="Undo [Ctrl+Z]">
         <span class="material-symbols-outlined">undo</span>
       </button>
-      <button id="btn-redo" class="icon-btn" disabled title="Redo">
+      <button id="btn-redo" class="icon-btn" disabled title="Redo [Ctrl+Shift+Z]">
         <span class="material-symbols-outlined">redo</span>
       </button>
     </aside>
@@ -60,21 +61,21 @@
     <nav id="bottom-bar">
       <div class="bar-container horizontal">
         <div class="tool-group">
-          <button id="btn-perspective" class="icon-btn" disabled title="Align/Perspective">
+          <button id="btn-perspective" class="icon-btn" disabled title="Perspective [P]">
             <span class="material-symbols-outlined">border_all</span>
           </button>
-          <button id="btn-cut" class="icon-btn" disabled title="Cut">
+          <button id="btn-cut" class="icon-btn" disabled title="Cut [C]">
             <span class="material-symbols-outlined">content_cut</span>
           </button>
-          <button id="btn-extrude" class="icon-btn" disabled title="Extrude">
+          <button id="btn-extrude" class="icon-btn" disabled title="Extrude [E]">
             <span class="material-symbols-outlined">step_out</span>
           </button>
-          <button id="btn-inset" class="icon-btn" disabled title="Inset">
+          <button id="btn-inset" class="icon-btn" disabled title="Inset [I]">
             <span class="material-symbols-outlined">select_all</span>
           </button>
         </div>
         <div class="tool-divider"></div>
-        <button id="btn-select" class="icon-btn" disabled title="Select">
+        <button id="btn-select" class="icon-btn" disabled title="Select [S]">
           <span class="material-symbols-outlined">arrow_selector_tool</span>
         </button>
       </div>
