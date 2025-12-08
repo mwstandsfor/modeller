@@ -412,3 +412,37 @@ body {
   stroke-width: 4;
   stroke-linecap: round;
 }
+
+/* Camera Reset Button */
+.camera-reset-btn {
+  position: absolute;
+  bottom: 50px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-primary);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 50;
+}
+
+.camera-reset-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+.camera-reset-btn:active {
+  transform: scale(0.95);
+}
+
+.camera-icon {
+  font-size: 22px;
+}

@@ -129,7 +129,22 @@ export class ExtrudeTool {
   }
 
   handlePointerDown(e) {
-    if (!this.selectedFace) return;
+    if (!this.selectedFace) {
+      // Allow 3D rotation when no face is selected
+      this.sceneManager.setControlsEnabled(true);
+      return;
+    }
+
+    // Check if clicking on the mesh
+    const ndc = this.sceneManager.screenToNDC(e.clientX, e.clientY);
+    const raycaster = this.sceneManager.getRaycaster(ndc.x, ndc.y);
+    const intersects = raycaster.intersectObject(this.editableMesh.mesh);
+
+    if (intersects.length === 0) {
+      // Clicking on empty space - allow 3D rotation
+      this.sceneManager.setControlsEnabled(true);
+      return;
+    }
 
     this.isExtruding = true;
     this.startY = e.clientY;

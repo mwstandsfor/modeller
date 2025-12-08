@@ -94,6 +94,10 @@ class App {
     // Setup approve button
     this.approveBtn.addEventListener('click', () => this.executeApprove());
 
+    // Setup camera reset button
+    const cameraResetBtn = document.getElementById('btn-camera-reset');
+    cameraResetBtn.addEventListener('click', () => this.scene.resetCamera());
+
     // Listen to mode changes
     this.modeManager.onModeChange((newMode, oldMode) => {
       this.onModeChange(newMode, oldMode);
@@ -391,8 +395,7 @@ class App {
       const canvasHeight = this.overlayCanvas.height;
 
       const result = await perspectiveTransform(
-        lines.x,
-        lines.y,
+        lines,  // Now passes full object with x1, x2, y1, y2
         this.currentImageElement,
         canvasWidth,
         canvasHeight

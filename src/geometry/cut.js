@@ -198,7 +198,11 @@ export class CutOverlay {
     // Pending cut data
     this.pendingCut = null;
 
+    // Rotation state for 3D navigation
+    this.isRotating = false;
+
     this.handleResize = this.handleResize.bind(this);
+    this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
 
@@ -221,6 +225,7 @@ export class CutOverlay {
 
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
+    this.canvas.addEventListener('pointerup', this.handlePointerUp);
 
     this.reset();
     this.draw();
@@ -233,6 +238,10 @@ export class CutOverlay {
 
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
     this.canvas.removeEventListener('pointermove', this.handlePointerMove);
+    this.canvas.removeEventListener('pointerup', this.handlePointerUp);
+
+    // Ensure controls are re-enabled
+    this.sceneManager.setControlsEnabled(true);
   }
 
   handleResize() {
@@ -294,7 +303,16 @@ export class CutOverlay {
   handlePointerDown(e) {
     const result = this.findEdgeAtPosition(e.clientX, e.clientY);
 
-    if (!result) return;
+    if (!result) {
+      // Allow 3D rotation when clicking on empty space
+      this.sceneManager.setControlsEnabled(true);
+      this.isRotating = true;
+      return;
+    }
+
+    // Disable rotation when interacting with mesh
+    this.sceneManager.setControlsEnabled(false);
+    this.isRotating = false;
 
     if (!this.startPoint) {
       // First click - set start
@@ -356,6 +374,14 @@ export class CutOverlay {
     }
 
     this.draw();
+  }
+
+  handlePointerUp(e) {
+    // Re-enable orbit controls after rotation
+    if (this.isRotating) {
+      this.isRotating = false;
+      // Keep controls enabled for continued rotation
+    }
   }
 
   getPoint(e) {
