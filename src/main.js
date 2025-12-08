@@ -94,6 +94,7 @@ class App {
 
     // UI elements
     this.approveBtn = document.getElementById('btn-approve');
+    this.skipBtn = document.getElementById('btn-skip');
     this.recentSection = document.getElementById('recent-section');
     this.recentImagesGrid = document.getElementById('recent-images');
 
@@ -103,9 +104,19 @@ class App {
     // Setup approve button
     this.approveBtn.addEventListener('click', () => this.executeApprove());
 
+    // Setup skip button (for perspective step)
+    this.skipBtn.addEventListener('click', () => this.skipPerspective());
+
     // Setup camera reset button
     const cameraResetBtn = document.getElementById('btn-camera-reset');
     cameraResetBtn.addEventListener('click', () => this.scene.resetCamera());
+
+    // Setup ESC key to skip perspective
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.modeManager.isMode(Modes.PERSPECTIVE)) {
+        this.skipPerspective();
+      }
+    });
 
     // Listen to mode changes
     this.modeManager.onModeChange((newMode, oldMode) => {
@@ -258,11 +269,94 @@ class App {
   }
 
   /**
+   * Show skip button
+   */
+  showSkipButton() {
+    this.skipBtn.style.display = 'flex';
+  }
+
+  /**
+   * Hide skip button
+   */
+  hideSkipButton() {
+    this.skipBtn.style.display = 'none';
+  }
+
+  /**
+   * Skip perspective correction and use original image
+   */
+  async skipPerspective() {
+    if (!this.currentImageElement || !this.currentImageElement.complete) {
+      console.error('Image not loaded');
+      return;
+    }
+
+    try {
+      // Create canvas from original image (no correction)
+      const canvas = document.createElement('canvas');
+      canvas.width = this.currentImageElement.width;
+      canvas.height = this.currentImageElement.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(this.currentImageElement, 0, 0);
+
+      // Store canvas for export
+      this.correctedCanvas = canvas;
+
+      // Remove original image plane
+      if (this.imagePlane) {
+        this.scene.remove(this.imagePlane.mesh);
+        this.imagePlane.dispose();
+        this.imagePlane = null;
+      }
+
+      // Create texture from original image
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+
+      // Calculate plane dimensions
+      const maxSize = 2;
+      const aspect = canvas.width / canvas.height;
+      let width, height;
+
+      if (aspect > 1) {
+        width = maxSize;
+        height = maxSize / aspect;
+      } else {
+        height = maxSize;
+        width = maxSize * aspect;
+      }
+
+      // Create editable mesh
+      this.editableMesh = new EditableMesh();
+      this.editableMesh.createFromDimensions(width, height, texture);
+
+      // Add mesh and wireframe to scene
+      this.scene.add(this.editableMesh.mesh);
+      this.scene.add(this.editableMesh.getWireframe());
+
+      this.hasMesh = true;
+      this.perspectiveOverlay.deactivate();
+      this.hideSkipButton();
+      this.setMode(Modes.SELECT);
+
+      this.history.pushState(this.getSerializableState(), 'Skip perspective');
+      this.scene.resetCamera();
+      this.updateUI();
+
+      console.log('Skipped perspective - editable mesh created from original image');
+    } catch (error) {
+      console.error('Failed to skip perspective:', error);
+      alert('Failed to create mesh. Please try again.');
+    }
+  }
+
+  /**
    * Handle mode changes
    */
   onModeChange(newMode, oldMode) {
     // Hide approve button and cancel pending actions
     this.hideApproveButton();
+    this.hideSkipButton();
     this.pendingPerspectiveLines = null;
 
     // Cancel pending tool actions
@@ -300,6 +394,7 @@ class App {
       case Modes.PERSPECTIVE:
         if (this.hasImage) {
           this.perspectiveOverlay.activate();
+          this.showSkipButton();  // Show skip button during perspective mode
         }
         break;
       case Modes.CUT:

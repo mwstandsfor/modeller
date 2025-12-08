@@ -413,6 +413,37 @@ body {
   stroke-linecap: round;
 }
 
+/* Skip Button */
+.skip-btn {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(calc(-50% - 100px));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 100;
+}
+
+.skip-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.skip-btn:active {
+  transform: translateX(calc(-50% - 100px)) scale(0.98);
+}
+
 /* Camera Reset Button */
 .camera-reset-btn {
   position: absolute;
