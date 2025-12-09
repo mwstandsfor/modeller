@@ -170,6 +170,81 @@ export function splitFace(face, startEdge, endEdge, nextFaceId) {
 }
 
 /**
+ * Find the intersection of an infinite line with an edge segment
+ * @param {THREE.Vector3} linePoint1 - First point on the infinite line
+ * @param {THREE.Vector3} linePoint2 - Second point on the infinite line
+ * @param {THREE.Vector3} edgeStart - Start of edge segment
+ * @param {THREE.Vector3} edgeEnd - End of edge segment
+ * @returns {{point: THREE.Vector3, t: number}|null} - Intersection point and t parameter (0-1 along edge)
+ */
+function lineEdgeIntersection(linePoint1, linePoint2, edgeStart, edgeEnd) {
+  // Work in 2D by projecting onto the dominant plane
+  // Use XY plane for now (assumes faces are roughly in XY plane)
+  const x1 = linePoint1.x, y1 = linePoint1.y;
+  const x2 = linePoint2.x, y2 = linePoint2.y;
+  const x3 = edgeStart.x, y3 = edgeStart.y;
+  const x4 = edgeEnd.x, y4 = edgeEnd.y;
+
+  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(denom) < 0.0001) return null; // Parallel
+
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+
+  // u must be in [0, 1] for intersection to be on the edge segment
+  // t can be any value (infinite line)
+  if (u < 0.001 || u > 0.999) return null; // Not on edge (with small margin)
+
+  const point = new THREE.Vector3().lerpVectors(edgeStart, edgeEnd, u);
+  return { point, t: u };
+}
+
+/**
+ * Find all faces that an infinite line passes through
+ * @param {Array<Face>} faces - All faces in the mesh
+ * @param {THREE.Vector3} linePoint1 - First point defining the cut line
+ * @param {THREE.Vector3} linePoint2 - Second point defining the cut line
+ * @param {Face} excludeFace - Face to exclude (the one being cut directly)
+ * @returns {Array<{face: Face, startEdge: object, endEdge: object}>}
+ */
+export function findFacesOnLine(faces, linePoint1, linePoint2, excludeFace = null) {
+  const results = [];
+
+  for (const face of faces) {
+    if (excludeFace && face.id === excludeFace.id) continue;
+
+    const edges = face.getEdges();
+    const intersections = [];
+
+    // Find all edge intersections with the infinite line
+    for (const edge of edges) {
+      const intersection = lineEdgeIntersection(linePoint1, linePoint2, edge.start, edge.end);
+      if (intersection) {
+        intersections.push({
+          edge: edge,
+          point: intersection.point,
+          t: intersection.t
+        });
+      }
+    }
+
+    // Need exactly 2 intersections for a valid cut
+    if (intersections.length === 2) {
+      // Make sure they're on different edges
+      if (intersections[0].edge.startIndex !== intersections[1].edge.startIndex) {
+        results.push({
+          face: face,
+          startEdge: intersections[0],
+          endEdge: intersections[1]
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
  * Cut overlay for drawing cut lines on the mesh
  */
 export class CutOverlay {
@@ -274,7 +349,7 @@ export class CutOverlay {
     let closestFace = null;
 
     for (const face of this.editableMesh.faces) {
-      const edge = findClosestEdge(hitPoint, face, 0.2);
+      const edge = findClosestEdge(hitPoint, face, 0.3);
       if (edge && (!closestEdge || edge.point.distanceTo(hitPoint) < closestEdge.point.distanceTo(hitPoint))) {
         closestEdge = edge;
         closestFace = face;
@@ -305,10 +380,26 @@ export class CutOverlay {
 
     if (!result) {
       // Allow 3D rotation when clicking on empty space
-      // Temporarily disable pointer events on overlay to let OrbitControls receive events
+      // Disable pointer events on overlay and dispatch event to 3D canvas
       this.canvas.style.pointerEvents = 'none';
       this.sceneManager.setControlsEnabled(true);
       this.isRotating = true;
+
+      // Dispatch a new pointerdown event to the 3D canvas so OrbitControls receives it
+      const renderer = this.sceneManager.renderer;
+      if (renderer && renderer.domElement) {
+        const syntheticEvent = new PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          pointerId: e.pointerId,
+          pointerType: e.pointerType,
+          button: e.button,
+          buttons: e.buttons
+        });
+        renderer.domElement.dispatchEvent(syntheticEvent);
+      }
 
       // Listen for pointerup on document since overlay won't receive it
       const onDocumentPointerUp = () => {
@@ -332,8 +423,11 @@ export class CutOverlay {
       this.startPoint = this.worldToScreen(result.edge.point);
     } else {
       // Second click - store pending cut if valid and signal ready
-      if (result.face === this.startFace &&
-          result.edge.edge.startIndex !== this.startEdge.edge.startIndex) {
+      // Compare by face ID (more robust than object reference)
+      const sameFace = result.face.id === this.startFace.id;
+      const differentEdge = result.edge.edge.startIndex !== this.startEdge.edge.startIndex;
+
+      if (sameFace && differentEdge) {
         this.pendingCut = {
           face: this.startFace,
           startEdge: this.startEdge,
@@ -343,6 +437,7 @@ export class CutOverlay {
           this.onReady(this.pendingCut);
         }
       } else {
+        // Invalid cut - reset and allow user to try again
         this.reset();
       }
     }
@@ -422,9 +517,11 @@ export class CutOverlay {
     if (!this.isActive) return;
 
     // Determine if current hover is a valid cut target
+    // Use ID comparison for robustness
     const isValidCut = this.startPoint &&
       this.hoverEdge &&
-      this.hoverFace === this.startFace &&
+      this.hoverFace && this.startFace &&
+      this.hoverFace.id === this.startFace.id &&
       this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
 
     // Draw hover edge highlight (when no start point set)

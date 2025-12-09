@@ -8,7 +8,7 @@ import { HistoryManager } from './history/undo.js';
 import { StorageManager } from './storage/local.js';
 import { PerspectiveOverlay } from './perspective/overlay.js';
 import { perspectiveTransform } from './perspective/dewarp.js';
-import { CutOverlay, splitFace } from './geometry/cut.js';
+import { CutOverlay, splitFace, findFacesOnLine } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
 import { ExtrudeTool, extrudeFace } from './geometry/extrude.js';
 import { InsetTool, insetFace } from './geometry/inset.js';
@@ -621,34 +621,63 @@ class App {
   }
 
   /**
-   * Handle cut complete
+   * Handle cut complete - cuts through all faces along the cut line
    */
   onCutComplete(face, startEdge, endEdge) {
     console.log('Cut:', face.id, startEdge, endEdge);
 
     // Save state for undo
-    this.history.pushState(this.getSerializableState(), 'Cut face');
+    this.history.pushState(this.getSerializableState(), 'Cut faces');
 
-    // Perform the cut
-    const result = splitFace(face, startEdge, endEdge, this.editableMesh.nextFaceId);
+    // Define the cut line from the two edge points
+    const linePoint1 = startEdge.point;
+    const linePoint2 = endEdge.point;
 
-    if (result) {
-      // Remove old face
-      const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
-      if (faceIndex >= 0) {
-        this.editableMesh.faces.splice(faceIndex, 1);
+    // Find all other faces that this line passes through
+    const additionalCuts = findFacesOnLine(
+      this.editableMesh.faces,
+      linePoint1,
+      linePoint2,
+      face // exclude the primary face
+    );
+
+    // Collect all cuts to perform (primary + additional)
+    const allCuts = [
+      { face, startEdge, endEdge },
+      ...additionalCuts
+    ];
+
+    let nextFaceId = this.editableMesh.nextFaceId;
+    const facesToRemove = [];
+    const facesToAdd = [];
+
+    // Perform all cuts
+    for (const cut of allCuts) {
+      const result = splitFace(cut.face, cut.startEdge, cut.endEdge, nextFaceId);
+
+      if (result) {
+        facesToRemove.push(cut.face.id);
+        facesToAdd.push(result.face1);
+        facesToAdd.push(result.face2);
+        nextFaceId = result.face2.id + 1;
+
+        console.log('Face', cut.face.id, 'split into', result.face1.id, 'and', result.face2.id);
       }
-
-      // Add new faces
-      this.editableMesh.faces.push(result.face1);
-      this.editableMesh.faces.push(result.face2);
-      this.editableMesh.nextFaceId = result.face2.id + 1;
-
-      // Rebuild mesh
-      this.editableMesh.rebuildMesh();
-
-      console.log('Face split into', result.face1.id, 'and', result.face2.id);
     }
+
+    // Remove old faces
+    this.editableMesh.faces = this.editableMesh.faces.filter(
+      f => !facesToRemove.includes(f.id)
+    );
+
+    // Add new faces
+    this.editableMesh.faces.push(...facesToAdd);
+    this.editableMesh.nextFaceId = nextFaceId;
+
+    // Rebuild mesh
+    this.editableMesh.rebuildMesh();
+
+    console.log('Cut complete:', facesToRemove.length, 'faces split into', facesToAdd.length, 'new faces');
   }
 
   /**
