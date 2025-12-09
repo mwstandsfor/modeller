@@ -110,30 +110,15 @@ export function splitFace(face, startEdge, endEdge, nextFaceId) {
   );
 
   // Build two new faces by walking around the polygon
-  // Face 1: from newVertex1 along edges to newVertex2, then back to newVertex1
-  // Face 2: the remaining vertices
+  // Face 1: from newVertex1 along edges to newVertex2
+  // Face 2: from newVertex2 along remaining edges to newVertex1
+  // Both faces maintain the same winding order as the original
 
   const face1Verts = [];
   const face1UVs = [];
   const face2Verts = [];
   const face2UVs = [];
 
-  // Determine which direction to walk
-  let idx1 = (startIdx + 1) % n;
-  let idx2 = endIdx;
-
-  // Make sure idx1 < idx2 for consistent ordering
-  if (idx1 > idx2) {
-    [idx1, idx2] = [idx2, idx1];
-    [newVertex1.copy(newVertex2), newVertex2.copy(startEdge.point)];
-    [newUV1.copy(newUV2), newUV2.copy(new THREE.Vector2().lerpVectors(
-      uvs[startIdx],
-      uvs[(startIdx + 1) % n],
-      startEdge.t
-    ))];
-  }
-
-  // Rebuild using the cut line
   // Face 1: newVertex1 -> vertices from startEdge.endIndex to endEdge.startIndex -> newVertex2
   face1Verts.push(newVertex1.clone());
   face1UVs.push(newUV1.clone());
