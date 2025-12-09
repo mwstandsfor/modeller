@@ -124,12 +124,10 @@ export class PerspectiveOverlay {
     e.preventDefault();
     const pos = this.getPoint(e);
 
-    // If in preview mode, exit it to show corners for editing
+    // If in preview mode (e.g. adjusting slider), exit it to show corners
+    // But keep the rectified image - just show the markers for editing
     if (this.previewMode) {
       this.previewMode = false;
-      if (this.onExitPreview) {
-        this.onExitPreview();
-      }
       this.draw();
     }
 

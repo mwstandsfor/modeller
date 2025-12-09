@@ -40,7 +40,7 @@ class App {
       this.pendingPerspectivePoints = points;
       this.showRatioSlider();
       this.updatePerspectivePreview(); // Show initial preview
-      this.perspectiveOverlay.enterPreviewMode(); // Hide corner markers for clean preview
+      // Keep corner markers visible (don't enter preview mode)
       this.showApproveButton(() => {
         const points = this.pendingPerspectivePoints;
         this.pendingPerspectivePoints = null;
@@ -50,13 +50,10 @@ class App {
     // Update preview when corners are adjusted (called on pointerUp)
     this.perspectiveOverlay.onChange = (points) => {
       this.pendingPerspectivePoints = points;
-      this.updatePerspectivePreview();
-      this.perspectiveOverlay.enterPreviewMode(); // Re-enter preview mode after edit
+      this.updatePerspectivePreview(); // Recalculate with new corner positions
+      // Keep markers visible after editing
     };
-    // Restore original image when user clicks to edit corners
-    this.perspectiveOverlay.onExitPreview = () => {
-      this.restoreOriginalImage();
-    };
+    // No need for onExitPreview - we keep the rectified image when editing
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
     this.cutOverlay.onCutComplete = (face, startEdge, endEdge) => this.onCutComplete(face, startEdge, endEdge);
@@ -128,8 +125,14 @@ class App {
         if (this.ratioValueDisplay) {
           this.ratioValueDisplay.textContent = this.ratioScale.toFixed(2);
         }
+        // Enter preview mode (hide markers) while adjusting for cleaner view
+        this.perspectiveOverlay.enterPreviewMode();
         // Update preview with new ratio
         this.updatePerspectivePreview();
+      });
+      // When slider is released, show markers again
+      this.ratioSlider.addEventListener('change', () => {
+        this.perspectiveOverlay.exitPreviewMode();
       });
     }
 
