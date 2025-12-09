@@ -16,6 +16,9 @@ export class PerspectiveOverlay {
     this.dragIndex = -1;
     this.hoverIndex = -1;
 
+    // Preview mode - when true, hide corner markers (preview is shown)
+    this.previewMode = false;
+
     // Hit detection radius (scales with canvas)
     this.HIT_RADIUS = 20;
 
@@ -32,6 +35,7 @@ export class PerspectiveOverlay {
     this.onComplete = null;  // Called when 4 points are placed
     this.onChange = null;    // Called when points change (for live preview)
     this.onReady = null;     // Alias for onComplete
+    this.onExitPreview = null; // Called when user clicks to edit corners (exit preview mode)
 
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -119,6 +123,16 @@ export class PerspectiveOverlay {
   handlePointerDown(e) {
     e.preventDefault();
     const pos = this.getPoint(e);
+
+    // If in preview mode, exit it to show corners for editing
+    if (this.previewMode) {
+      this.previewMode = false;
+      if (this.onExitPreview) {
+        this.onExitPreview();
+      }
+      this.draw();
+    }
+
     const index = this.getPointAt(pos);
 
     if (index !== -1) {
@@ -143,14 +157,10 @@ export class PerspectiveOverlay {
     const pos = this.getPoint(e);
 
     if (this.isDragging && this.dragIndex !== -1) {
-      // Update dragged point position
+      // Update dragged point position (visual only, no preview update)
       this.points[this.dragIndex] = pos;
       this.draw();
-
-      // Notify change for live preview
-      if (this.points.length === 4 && this.onChange) {
-        this.onChange(this.getPoints());
-      }
+      // Note: Preview updates on pointerUp, not during drag
     } else {
       // Update hover state
       const newHoverIndex = this.getPointAt(pos);
@@ -241,6 +251,11 @@ export class PerspectiveOverlay {
 
     // Clear
     ctx.clearRect(0, 0, width, height);
+
+    // In preview mode, just show a clean view (no overlay graphics)
+    if (this.previewMode) {
+      return;
+    }
 
     // Draw semi-transparent background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -346,7 +361,31 @@ export class PerspectiveOverlay {
     this.isDragging = false;
     this.dragIndex = -1;
     this.hoverIndex = -1;
+    this.previewMode = false;
     this.draw();
+  }
+
+  /**
+   * Enter preview mode - hides corner markers for clean preview
+   */
+  enterPreviewMode() {
+    this.previewMode = true;
+    this.draw();
+  }
+
+  /**
+   * Exit preview mode - shows corner markers again for editing
+   */
+  exitPreviewMode() {
+    this.previewMode = false;
+    this.draw();
+  }
+
+  /**
+   * Check if in preview mode
+   */
+  isInPreviewMode() {
+    return this.previewMode;
   }
 
   /**

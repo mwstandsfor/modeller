@@ -40,16 +40,22 @@ class App {
       this.pendingPerspectivePoints = points;
       this.showRatioSlider();
       this.updatePerspectivePreview(); // Show initial preview
+      this.perspectiveOverlay.enterPreviewMode(); // Hide corner markers for clean preview
       this.showApproveButton(() => {
         const points = this.pendingPerspectivePoints;
         this.pendingPerspectivePoints = null;
         this.perspectiveOverlay.onComplete(points);
       }, 'Apply');
     };
-    // Live preview when dragging corners
+    // Update preview when corners are adjusted (called on pointerUp)
     this.perspectiveOverlay.onChange = (points) => {
       this.pendingPerspectivePoints = points;
       this.updatePerspectivePreview();
+      this.perspectiveOverlay.enterPreviewMode(); // Re-enter preview mode after edit
+    };
+    // Restore original image when user clicks to edit corners
+    this.perspectiveOverlay.onExitPreview = () => {
+      this.restoreOriginalImage();
     };
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
@@ -369,6 +375,57 @@ class App {
     if (this.ratioValueDisplay) {
       this.ratioValueDisplay.textContent = '1.00';
     }
+  }
+
+  /**
+   * Restore the original image (before perspective transform preview)
+   */
+  restoreOriginalImage() {
+    if (!this.imagePlane || !this.imagePlane.mesh || !this.currentImageElement) {
+      return;
+    }
+
+    // Create texture from original image
+    const originalTexture = new THREE.CanvasTexture(
+      this.createCanvasFromImage(this.currentImageElement)
+    );
+    originalTexture.colorSpace = THREE.SRGBColorSpace;
+
+    // Calculate original dimensions
+    const maxSize = 2;
+    const aspect = this.currentImageElement.width / this.currentImageElement.height;
+    let width, height;
+
+    if (aspect > 1) {
+      width = maxSize;
+      height = maxSize / aspect;
+    } else {
+      height = maxSize;
+      width = maxSize * aspect;
+    }
+
+    // Restore original geometry
+    this.imagePlane.mesh.geometry.dispose();
+    this.imagePlane.mesh.geometry = new THREE.PlaneGeometry(width, height);
+
+    // Restore original texture
+    if (this.imagePlane.mesh.material.map) {
+      this.imagePlane.mesh.material.map.dispose();
+    }
+    this.imagePlane.mesh.material.map = originalTexture;
+    this.imagePlane.mesh.material.needsUpdate = true;
+  }
+
+  /**
+   * Create a canvas from an image element
+   */
+  createCanvasFromImage(img) {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    return canvas;
   }
 
   /**
