@@ -130,10 +130,7 @@ export class PerspectiveOverlay {
       this.points.push(pos);
 
       if (this.points.length === 4) {
-        // All 4 points placed
-        if (this.onComplete) {
-          this.onComplete(this.getPoints());
-        }
+        // All 4 points placed - notify ready for approval
         if (this.onReady) {
           this.onReady(this.getPoints());
         }
@@ -179,14 +176,9 @@ export class PerspectiveOverlay {
       this.isDragging = false;
       this.dragIndex = -1;
 
-      // Notify completion of drag
-      if (this.points.length === 4) {
-        if (this.onComplete) {
-          this.onComplete(this.getPoints());
-        }
-        if (this.onReady) {
-          this.onReady(this.getPoints());
-        }
+      // Notify that points changed after drag
+      if (this.points.length === 4 && this.onChange) {
+        this.onChange(this.getPoints());
       }
     }
   }
