@@ -61,8 +61,8 @@ export class ImagePlane {
           this.mesh = new THREE.Mesh(geometry, material);
           this.mesh.name = 'imagePlane';
 
-          // Position at origin, facing camera
-          this.mesh.position.set(0, height / 2, 0);
+          // Position at origin, centered on grid
+          this.mesh.position.set(0, 0, 0);
 
           resolve(this.mesh);
         };

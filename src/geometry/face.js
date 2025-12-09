@@ -182,8 +182,11 @@ export class EditableMesh {
 
     // Create or update mesh
     if (!this.mesh) {
-      // Create material with back-face darkening
-      const material = this.createBackfaceDarkenMaterial(this.texture);
+      // Create material - use MeshBasicMaterial for correct color handling
+      const material = new THREE.MeshBasicMaterial({
+        map: this.texture,
+        side: THREE.DoubleSide
+      });
 
       this.mesh = new THREE.Mesh(geometry, material);
       this.mesh.name = 'editableMesh';

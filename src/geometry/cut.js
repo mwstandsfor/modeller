@@ -427,22 +427,6 @@ export class CutOverlay {
       this.hoverFace === this.startFace &&
       this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
 
-    // Draw instruction
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.85)';
-    ctx.beginPath();
-    ctx.roundRect(width / 2 - 160, 10, 320, 40, 6);
-    ctx.fill();
-
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px sans-serif';
-    ctx.textAlign = 'center';
-
-    let instruction = 'Click an edge to start cut';
-    if (this.startPoint) {
-      instruction = 'Click another edge on the same face to cut';
-    }
-    ctx.fillText(instruction, width / 2, 35);
-
     // Draw hover edge highlight (when no start point set)
     if (!this.startPoint && this.hoverPoint) {
       this.drawEdgeHighlight(this.hoverEdge, this.edgeColor);

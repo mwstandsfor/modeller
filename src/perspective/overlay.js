@@ -32,10 +32,10 @@ export class PerspectiveOverlay {
     this.isDrawing = false;
     this.startPoint = null;
 
-    // Style
+    // Style - colors match axis gizmo
     this.colors = {
-      x: '#ff6b6b', // Red for X-axis lines
-      y: '#4ecdc4', // Teal for Y-axis lines
+      x: '#EA1941', // Red for X-axis lines (matches gizmo)
+      y: '#629600', // Green for Y-axis lines (matches gizmo)
       guide: '#888888',
       selected: '#ffffff'
     };
