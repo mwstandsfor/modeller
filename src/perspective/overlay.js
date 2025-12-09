@@ -1,6 +1,6 @@
 /**
- * 2D Overlay for drawing perspective correction lines
- * Uses fSpy-style 4-line approach with 2 vanishing points
+ * 2D Overlay for drawing perspective correction rectangle
+ * Uses 4-corner selection like imgRect.html
  */
 export class PerspectiveOverlay {
   constructor(canvas, sceneManager) {
@@ -8,41 +8,30 @@ export class PerspectiveOverlay {
     this.ctx = canvas.getContext('2d');
     this.sceneManager = sceneManager;
 
-    // Line data - 4 lines: 2 pairs for 2 vanishing points
-    // x1, x2 define horizontal vanishing point (parallel horizontal lines in 3D)
-    // y1, y2 define vertical vanishing point (parallel vertical lines in 3D)
-    this.lines = {
-      x1: null,
-      x2: null,
-      y1: null,
-      y2: null
-    };
+    // Corner points - array of {x, y}
+    this.points = [];
 
-    // Line order for drawing
-    this.lineOrder = ['x1', 'x2', 'y1', 'y2'];
-    this.currentLineIndex = 0;
+    // Dragging state
+    this.isDragging = false;
+    this.dragIndex = -1;
+    this.hoverIndex = -1;
 
-    // Current line being drawn
-    this.currentLine = null;
+    // Hit detection radius (scales with canvas)
+    this.HIT_RADIUS = 20;
 
-    // Selected line for redrawing
-    this.selectedLine = null;
-
-    // Drawing state
-    this.isDrawing = false;
-    this.startPoint = null;
-
-    // Style - colors match axis gizmo
+    // Style
     this.colors = {
-      x: '#EA1941', // Red for X-axis lines (matches gizmo)
-      y: '#629600', // Green for Y-axis lines (matches gizmo)
-      guide: '#888888',
-      selected: '#ffffff'
+      line: '#949DFF',       // Accent color for lines
+      point: '#EA1941',      // Red for normal points
+      pointHover: '#facc15', // Yellow for hover
+      pointDrag: '#22c55e',  // Green for dragging
+      guide: '#888888'
     };
 
     // Callbacks
-    this.onComplete = null;
-    this.onReady = null;
+    this.onComplete = null;  // Called when 4 points are placed
+    this.onChange = null;    // Called when points change (for live preview)
+    this.onReady = null;     // Alias for onComplete
 
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -66,10 +55,10 @@ export class PerspectiveOverlay {
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
 
     // Reset state
-    this.lines = { x1: null, x2: null, y1: null, y2: null };
-    this.currentLineIndex = 0;
-    this.selectedLine = null;
-    this.isDrawing = false;
+    this.points = [];
+    this.isDragging = false;
+    this.dragIndex = -1;
+    this.hoverIndex = -1;
 
     this.draw();
   }
@@ -98,124 +87,8 @@ export class PerspectiveOverlay {
   }
 
   /**
-   * Check if a point is near a line
+   * Get canvas-relative point from event
    */
-  isPointNearLine(point, line, threshold = 20) {
-    if (!line) return false;
-
-    const { start, end } = line;
-
-    // Calculate distance from point to line segment
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
-
-    if (length < 1) return false;
-
-    // Project point onto line
-    const t = Math.max(0, Math.min(1,
-      ((point.x - start.x) * dx + (point.y - start.y) * dy) / (length * length)
-    ));
-
-    const projX = start.x + t * dx;
-    const projY = start.y + t * dy;
-
-    const distance = Math.sqrt(
-      (point.x - projX) ** 2 + (point.y - projY) ** 2
-    );
-
-    return distance < threshold;
-  }
-
-  /**
-   * Find which line is near the point
-   */
-  findLineAtPoint(point) {
-    for (const key of this.lineOrder) {
-      if (this.isPointNearLine(point, this.lines[key])) {
-        return key;
-      }
-    }
-    return null;
-  }
-
-  handlePointerDown(e) {
-    e.preventDefault();
-    const point = this.getPoint(e);
-
-    // Check if clicking on an existing line to redraw it
-    const clickedLine = this.findLineAtPoint(point);
-
-    if (clickedLine && !this.isDrawing) {
-      // Select this line for redrawing
-      this.selectedLine = clickedLine;
-      this.isDrawing = true;
-      this.startPoint = point;
-      this.currentLine = { start: point, end: point };
-      this.draw();
-      return;
-    }
-
-    // Otherwise, draw the next line in sequence
-    if (this.currentLineIndex < 4) {
-      this.selectedLine = null;
-      this.isDrawing = true;
-      this.startPoint = point;
-      this.currentLine = { start: point, end: point };
-      this.draw();
-    }
-  }
-
-  handlePointerMove(e) {
-    if (!this.isDrawing || !this.startPoint) return;
-
-    const point = this.getPoint(e);
-    this.currentLine = { start: this.startPoint, end: point };
-    this.draw();
-  }
-
-  handlePointerUp(e) {
-    if (!this.isDrawing || !this.currentLine) return;
-
-    this.isDrawing = false;
-
-    // Check if line is long enough (minimum 50 pixels)
-    const dx = this.currentLine.end.x - this.currentLine.start.x;
-    const dy = this.currentLine.end.y - this.currentLine.start.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
-
-    if (length >= 50) {
-      if (this.selectedLine) {
-        // Redrawing an existing line
-        this.lines[this.selectedLine] = { ...this.currentLine };
-        this.selectedLine = null;
-      } else {
-        // Drawing a new line in sequence
-        const key = this.lineOrder[this.currentLineIndex];
-        this.lines[key] = { ...this.currentLine };
-        this.currentLineIndex++;
-      }
-
-      // Check if all 4 lines are drawn
-      if (this.allLinesDrawn()) {
-        if (this.onReady) {
-          this.onReady(this.lines);
-        }
-      }
-    }
-
-    this.currentLine = null;
-    this.startPoint = null;
-    this.draw();
-  }
-
-  /**
-   * Check if all 4 lines are drawn
-   */
-  allLinesDrawn() {
-    return this.lines.x1 && this.lines.x2 && this.lines.y1 && this.lines.y2;
-  }
-
   getPoint(e) {
     const rect = this.canvas.getBoundingClientRect();
     return {
@@ -225,16 +98,145 @@ export class PerspectiveOverlay {
   }
 
   /**
-   * Get which line type we're currently drawing
+   * Find which point is at the given position
+   * Returns index or -1 if none
    */
-  getCurrentLineType() {
-    if (this.selectedLine) {
-      return this.selectedLine.startsWith('x') ? 'x' : 'y';
+  getPointAt(pos) {
+    const scaledRadius = Math.max(this.HIT_RADIUS, this.canvas.width / 50);
+
+    for (let i = 0; i < this.points.length; i++) {
+      const dist = Math.sqrt(
+        Math.pow(pos.x - this.points[i].x, 2) +
+        Math.pow(pos.y - this.points[i].y, 2)
+      );
+      if (dist < scaledRadius) {
+        return i;
+      }
     }
-    if (this.currentLineIndex < 4) {
-      return this.lineOrder[this.currentLineIndex].startsWith('x') ? 'x' : 'y';
+    return -1;
+  }
+
+  handlePointerDown(e) {
+    e.preventDefault();
+    const pos = this.getPoint(e);
+    const index = this.getPointAt(pos);
+
+    if (index !== -1) {
+      // Start dragging existing point
+      this.isDragging = true;
+      this.dragIndex = index;
+    } else if (this.points.length < 4) {
+      // Add new point
+      this.points.push(pos);
+
+      if (this.points.length === 4) {
+        // All 4 points placed
+        if (this.onComplete) {
+          this.onComplete(this.getPoints());
+        }
+        if (this.onReady) {
+          this.onReady(this.getPoints());
+        }
+      }
     }
-    return 'x';
+    this.draw();
+  }
+
+  handlePointerMove(e) {
+    const pos = this.getPoint(e);
+
+    if (this.isDragging && this.dragIndex !== -1) {
+      // Update dragged point position
+      this.points[this.dragIndex] = pos;
+      this.draw();
+
+      // Notify change for live preview
+      if (this.points.length === 4 && this.onChange) {
+        this.onChange(this.getPoints());
+      }
+    } else {
+      // Update hover state
+      const newHoverIndex = this.getPointAt(pos);
+      if (newHoverIndex !== this.hoverIndex) {
+        this.hoverIndex = newHoverIndex;
+
+        // Update cursor
+        if (this.hoverIndex !== -1) {
+          this.canvas.style.cursor = 'move';
+        } else if (this.points.length < 4) {
+          this.canvas.style.cursor = 'crosshair';
+        } else {
+          this.canvas.style.cursor = 'default';
+        }
+
+        this.draw();
+      }
+    }
+  }
+
+  handlePointerUp(e) {
+    if (this.isDragging) {
+      this.isDragging = false;
+      this.dragIndex = -1;
+
+      // Notify completion of drag
+      if (this.points.length === 4) {
+        if (this.onComplete) {
+          this.onComplete(this.getPoints());
+        }
+        if (this.onReady) {
+          this.onReady(this.getPoints());
+        }
+      }
+    }
+  }
+
+  /**
+   * Sort points to consistent order: [TL, TR, BR, BL]
+   */
+  sortPoints(pts) {
+    if (pts.length !== 4) return pts;
+
+    // Sort by Y first to get top 2 and bottom 2
+    const sortedByY = [...pts].sort((a, b) => a.y - b.y);
+    const top = sortedByY.slice(0, 2).sort((a, b) => a.x - b.x);
+    const bottom = sortedByY.slice(2, 4).sort((a, b) => a.x - b.x);
+
+    // Result is [Top-Left, Top-Right, Bottom-Right, Bottom-Left]
+    return [top[0], top[1], bottom[1], bottom[0]];
+  }
+
+  /**
+   * Get the sorted points
+   */
+  getPoints() {
+    return this.sortPoints(this.points);
+  }
+
+  /**
+   * Check if all 4 points are placed
+   */
+  allPointsPlaced() {
+    return this.points.length === 4;
+  }
+
+  /**
+   * Undo the last point
+   */
+  undoLastLine() {
+    if (this.points.length > 0) {
+      this.points.pop();
+      this.draw();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if can undo
+   */
+  canUndo() {
+    return this.points.length > 0;
   }
 
   /**
@@ -271,190 +273,87 @@ export class PerspectiveOverlay {
 
     ctx.setLineDash([]);
 
-    // Draw vanishing point lines if both X lines exist
-    if (this.lines.x1 && this.lines.x2) {
-      this.drawVanishingPointLines(this.lines.x1, this.lines.x2, this.colors.x);
-    }
+    // Draw rectangle connecting points
+    if (this.points.length > 0) {
+      const lineWidth = Math.max(2, this.canvas.width / 300);
 
-    // Draw vanishing point lines if both Y lines exist
-    if (this.lines.y1 && this.lines.y2) {
-      this.drawVanishingPointLines(this.lines.y1, this.lines.y2, this.colors.y);
-    }
+      ctx.beginPath();
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = this.colors.line;
+      ctx.moveTo(this.points[0].x, this.points[0].y);
 
-    // Draw saved lines with selection state
-    const activeLineType = this.getCurrentLineType();
-
-    for (const key of this.lineOrder) {
-      if (this.lines[key]) {
-        const isXType = key.startsWith('x');
-        const baseColor = isXType ? this.colors.x : this.colors.y;
-        const isSelected = key === this.selectedLine;
-        const isActiveType = (isXType && activeLineType === 'x') || (!isXType && activeLineType === 'y');
-
-        // Dim lines that are not the active type (30% opacity)
-        const opacity = isSelected ? 1.0 : (isActiveType ? 1.0 : 0.3);
-        const label = key.toUpperCase().replace('1', '-1').replace('2', '-2');
-
-        this.drawLine(this.lines[key], baseColor, label, opacity, isSelected);
+      for (let i = 1; i < this.points.length; i++) {
+        ctx.lineTo(this.points[i].x, this.points[i].y);
       }
+
+      // Close the shape if all 4 points
+      if (this.points.length === 4) {
+        ctx.closePath();
+      }
+      ctx.stroke();
     }
 
-    // Draw current line being drawn
-    if (this.currentLine) {
-      const color = this.getCurrentLineType() === 'x' ? this.colors.x : this.colors.y;
-      this.drawLine(this.currentLine, color, null, 1.0, true);
-    }
-  }
+    // Draw corner points
+    const radius = Math.max(5, this.canvas.width / 100);
+    const lineWidth = Math.max(2, this.canvas.width / 300);
 
-  /**
-   * Draw vanishing point extension lines
-   */
-  drawVanishingPointLines(line1, line2, color) {
-    const ctx = this.ctx;
-
-    // Calculate vanishing point (intersection of the two lines extended)
-    const vp = this.lineIntersection(line1, line2);
-
-    if (vp) {
-      // Draw thin extension lines to vanishing point
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.3;
-      ctx.setLineDash([4, 4]);
-
-      // Extend line 1 to VP
+    this.points.forEach((p, i) => {
       ctx.beginPath();
-      ctx.moveTo(line1.end.x, line1.end.y);
-      ctx.lineTo(vp.x, vp.y);
-      ctx.stroke();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
 
-      ctx.beginPath();
-      ctx.moveTo(line2.end.x, line2.end.y);
-      ctx.lineTo(vp.x, vp.y);
-      ctx.stroke();
+      // Color based on state
+      if (i === this.dragIndex) {
+        ctx.fillStyle = this.colors.pointDrag;
+      } else if (i === this.hoverIndex) {
+        ctx.fillStyle = this.colors.pointHover;
+      } else {
+        ctx.fillStyle = this.colors.point;
+      }
 
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1.0;
-
-      // Draw vanishing point indicator
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(vp.x, vp.y, 8, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.arc(vp.x, vp.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+      // White stroke
+      ctx.lineWidth = lineWidth / 2;
+      ctx.strokeStyle = 'white';
+      ctx.stroke();
 
-  /**
-   * Calculate line intersection
-   */
-  lineIntersection(line1, line2) {
-    const x1 = line1.start.x, y1 = line1.start.y;
-    const x2 = line1.end.x, y2 = line1.end.y;
-    const x3 = line2.start.x, y3 = line2.start.y;
-    const x4 = line2.end.x, y4 = line2.end.y;
-
-    const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-
-    if (Math.abs(denom) < 0.0001) {
-      return null; // Parallel lines
-    }
-
-    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-
-    return {
-      x: x1 + t * (x2 - x1),
-      y: y1 + t * (y2 - y1)
-    };
-  }
-
-  /**
-   * Draw a line with endpoints
-   */
-  drawLine(line, color, label = null, opacity = 1.0, isSelected = false) {
-    const ctx = this.ctx;
-
-    ctx.globalAlpha = opacity;
-
-    // Line
-    ctx.strokeStyle = isSelected ? this.colors.selected : color;
-    ctx.lineWidth = isSelected ? 4 : 3;
-    ctx.beginPath();
-    ctx.moveTo(line.start.x, line.start.y);
-    ctx.lineTo(line.end.x, line.end.y);
-    ctx.stroke();
-
-    // Endpoints
-    ctx.fillStyle = isSelected ? this.colors.selected : color;
-    ctx.beginPath();
-    ctx.arc(line.start.x, line.start.y, isSelected ? 8 : 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(line.end.x, line.end.y, isSelected ? 8 : 6, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Label
-    if (label) {
-      const midX = (line.start.x + line.end.x) / 2;
-      const midY = (line.start.y + line.end.y) / 2;
-
-      ctx.fillStyle = isSelected ? this.colors.selected : color;
-      ctx.font = 'bold 12px sans-serif';
+      // Point number label
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${Math.max(10, radius)}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText(label, midX, midY - 12);
-    }
+      ctx.textBaseline = 'middle';
+      ctx.fillText((i + 1).toString(), p.x, p.y);
+    });
 
-    ctx.globalAlpha = 1.0;
+    // Draw instruction text
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    const instruction = this.points.length < 4
+      ? `Click to place corner ${this.points.length + 1}/4`
+      : 'Drag corners to adjust';
+    ctx.fillText(instruction, width / 2, 20);
   }
 
   /**
-   * Get the drawn lines
+   * Get lines object for compatibility with old API
+   * Converts points to the old lines format
    */
   getLines() {
-    return this.lines;
-  }
-
-  /**
-   * Undo the last drawn line
-   * Returns true if a line was undone, false if nothing to undo
-   */
-  undoLastLine() {
-    if (this.currentLineIndex > 0) {
-      // Undo the most recently drawn line
-      this.currentLineIndex--;
-      const key = this.lineOrder[this.currentLineIndex];
-      this.lines[key] = null;
-      this.selectedLine = null;
-      this.currentLine = null;
-      this.startPoint = null;
-      this.isDrawing = false;
-      this.draw();
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Check if there are any lines that can be undone
-   */
-  canUndo() {
-    return this.currentLineIndex > 0;
+    // For compatibility - not used with new OpenCV approach
+    return { points: this.getPoints() };
   }
 
   /**
    * Reset the overlay
    */
   reset() {
-    this.lines = { x1: null, x2: null, y1: null, y2: null };
-    this.currentLineIndex = 0;
-    this.selectedLine = null;
-    this.currentLine = null;
-    this.startPoint = null;
-    this.isDrawing = false;
+    this.points = [];
+    this.isDragging = false;
+    this.dragIndex = -1;
+    this.hoverIndex = -1;
     this.draw();
   }
 

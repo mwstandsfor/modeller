@@ -7,7 +7,7 @@ import { EditableMesh } from './geometry/face.js';
 import { HistoryManager } from './history/undo.js';
 import { StorageManager } from './storage/local.js';
 import { PerspectiveOverlay } from './perspective/overlay.js';
-import { perspectiveTransform } from './perspective/dewarp.js';
+import { perspectiveTransform, isOpenCVReady, waitForOpenCV } from './perspective/dewarp.js';
 import { CutOverlay, splitFace, findFacesOnLine } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
 import { ExtrudeTool, extrudeFace } from './geometry/extrude.js';
@@ -35,14 +35,20 @@ class App {
 
     // Initialize tools
     this.perspectiveOverlay = new PerspectiveOverlay(this.overlayCanvas, this.scene);
-    this.perspectiveOverlay.onComplete = (lines) => this.onPerspectiveComplete(lines);
-    this.perspectiveOverlay.onReady = (lines) => {
-      this.pendingPerspectiveLines = lines;
+    this.perspectiveOverlay.onComplete = (points) => this.onPerspectiveComplete(points);
+    this.perspectiveOverlay.onReady = (points) => {
+      this.pendingPerspectivePoints = points;
+      this.showRatioSlider();
       this.showApproveButton(() => {
-        const lines = this.pendingPerspectiveLines;
-        this.pendingPerspectiveLines = null;
-        this.perspectiveOverlay.onComplete(lines);
+        const points = this.pendingPerspectivePoints;
+        this.pendingPerspectivePoints = null;
+        this.perspectiveOverlay.onComplete(points);
       }, 'Apply');
+    };
+    // Live preview when dragging corners
+    this.perspectiveOverlay.onChange = (points) => {
+      this.pendingPerspectivePoints = points;
+      // Live preview could be added here in future
     };
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
@@ -90,7 +96,8 @@ class App {
 
     // Pending action for approve button
     this.pendingAction = null;
-    this.pendingPerspectiveLines = null;
+    this.pendingPerspectivePoints = null;
+    this.ratioScale = 1.0;
 
     // UI elements
     this.approveBtn = document.getElementById('btn-approve');
@@ -100,9 +107,22 @@ class App {
     this.historyBtn = document.getElementById('btn-history');
     this.gridBtn = document.getElementById('btn-grid');
     this.snapBtn = document.getElementById('btn-snap');
+    this.ratioControl = document.getElementById('ratio-control');
+    this.ratioSlider = document.getElementById('ratio-slider');
+    this.ratioValueDisplay = document.getElementById('ratio-value');
 
     // Grid visibility state
     this.gridVisible = true;
+
+    // Setup ratio slider
+    if (this.ratioSlider) {
+      this.ratioSlider.addEventListener('input', (e) => {
+        this.ratioScale = parseFloat(e.target.value);
+        if (this.ratioValueDisplay) {
+          this.ratioValueDisplay.textContent = this.ratioScale.toFixed(2);
+        }
+      });
+    }
 
     // Bind methods
     this.updateUI = this.updateUI.bind(this);
@@ -323,6 +343,32 @@ class App {
   }
 
   /**
+   * Show ratio slider
+   */
+  showRatioSlider() {
+    if (this.ratioControl) {
+      this.ratioControl.style.display = 'flex';
+    }
+  }
+
+  /**
+   * Hide ratio slider and reset value
+   */
+  hideRatioSlider() {
+    if (this.ratioControl) {
+      this.ratioControl.style.display = 'none';
+    }
+    // Reset ratio scale
+    this.ratioScale = 1.0;
+    if (this.ratioSlider) {
+      this.ratioSlider.value = '1.0';
+    }
+    if (this.ratioValueDisplay) {
+      this.ratioValueDisplay.textContent = '1.00';
+    }
+  }
+
+  /**
    * Skip perspective correction and use original image
    */
   async skipPerspective() {
@@ -397,7 +443,8 @@ class App {
     // Hide approve button and cancel pending actions
     this.hideApproveButton();
     this.hideSkipButton();
-    this.pendingPerspectiveLines = null;
+    this.hideRatioSlider();
+    this.pendingPerspectivePoints = null;
 
     // Cancel pending tool actions
     if (this.cutOverlay.pendingCut) {
@@ -539,12 +586,24 @@ class App {
   /**
    * Handle perspective correction complete
    */
-  async onPerspectiveComplete(lines) {
-    console.log('Perspective lines drawn:', lines);
+  async onPerspectiveComplete(points) {
+    console.log('Perspective points:', points);
 
     if (!this.currentImageElement || !this.currentImageElement.complete) {
       console.error('Image not loaded');
       return;
+    }
+
+    // Wait for OpenCV to be ready
+    if (!isOpenCVReady()) {
+      try {
+        console.log('Waiting for OpenCV...');
+        await waitForOpenCV();
+      } catch (error) {
+        console.error('OpenCV failed to load:', error);
+        alert('OpenCV failed to load. Please refresh the page.');
+        return;
+      }
     }
 
     try {
@@ -552,10 +611,11 @@ class App {
       const canvasHeight = this.overlayCanvas.height;
 
       const result = await perspectiveTransform(
-        lines,  // Now passes full object with x1, x2, y1, y2
+        points,
         this.currentImageElement,
         canvasWidth,
-        canvasHeight
+        canvasHeight,
+        this.ratioScale
       );
 
       // Store corrected canvas for export
