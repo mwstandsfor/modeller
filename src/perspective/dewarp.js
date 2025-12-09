@@ -1,15 +1,13 @@
 /**
  * Perspective Rectification using Vanishing Points
  *
- * This implements proper "Guided Upright" / metric rectification:
- *
  * INPUT: User draws 4 axis lines (NOT corners)
  * - 2 lines along horizontal edges → intersect at vanishing point Vx
  * - 2 lines along vertical edges → intersect at vanishing point Vy
  *
  * ALGORITHM:
  * 1. Compute vanishing points Vx and Vy from line intersections
- * 2. Compute the "horizon line" (line at infinity) from Vx and Vy
+ * 2. Compute the "horizon line" from Vx and Vy
  * 3. Build rectifying homography that maps horizon to infinity
  * 4. Apply similarity transform to make axes orthogonal
  * 5. Warp entire image using the homography
@@ -20,8 +18,6 @@
  * Returns point in homogeneous coordinates (x, y, w)
  */
 function lineIntersectionHomogeneous(line1, line2) {
-  // Convert line endpoints to homogeneous line coefficients
-  // Line through (x1,y1) and (x2,y2) has coefficients (y1-y2, x2-x1, x1*y2-x2*y1)
   const l1 = lineToCoeffs(line1);
   const l2 = lineToCoeffs(line2);
 
@@ -41,29 +37,6 @@ function lineToCoeffs(line) {
   const x1 = line.start.x, y1 = line.start.y;
   const x2 = line.end.x, y2 = line.end.y;
   return [y1 - y2, x2 - x1, x1 * y2 - x2 * y1];
-}
-
-/**
- * Cross product of two points in homogeneous coordinates
- * Returns line coefficients (a, b, c)
- */
-function crossProduct(p1, p2) {
-  return [
-    p1.y * p2.w - p1.w * p2.y,
-    p1.w * p2.x - p1.x * p2.w,
-    p1.x * p2.y - p1.y * p2.x
-  ];
-}
-
-/**
- * Multiply 3x3 matrix by 3x1 vector
- */
-function matVecMult(M, v) {
-  return [
-    M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2],
-    M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2],
-    M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2]
-  ];
 }
 
 /**
@@ -136,11 +109,6 @@ export function lineAngle(line) {
 
 /**
  * Main perspective transform function
- *
- * @param {object} lines - Object with x1, x2 (horizontal), y1, y2 (vertical) lines
- * @param {HTMLImageElement} img - Source image
- * @param {number} canvasWidth - Canvas width where lines were drawn
- * @param {number} canvasHeight - Canvas height where lines were drawn
  */
 export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight) {
   // Scale line coordinates to image space
@@ -157,88 +125,157 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
   const y1 = scaleLine(lines.y1);
   const y2 = scaleLine(lines.y2);
 
+  const imgCenterX = img.width / 2;
+  const imgCenterY = img.height / 2;
+
   // Step 1: Compute vanishing points
-  // Vx = intersection of horizontal lines (x1, x2)
-  // Vy = intersection of vertical lines (y1, y2)
-  const Vx = lineIntersectionHomogeneous(x1, x2);
-  const Vy = lineIntersectionHomogeneous(y1, y2);
+  const Vx = lineIntersectionHomogeneous(x1, x2); // Horizontal VP
+  const Vy = lineIntersectionHomogeneous(y1, y2); // Vertical VP
 
   console.log('Vanishing point Vx (homogeneous):', Vx);
   console.log('Vanishing point Vy (homogeneous):', Vy);
 
-  // Check for degenerate cases (parallel lines)
+  // Check for degenerate cases
   const vxFinite = Math.abs(Vx.w) > 1e-6;
   const vyFinite = Math.abs(Vy.w) > 1e-6;
 
-  if (!vxFinite && !vyFinite) {
-    console.log('Both vanishing points at infinity - no perspective correction needed');
-    return fallbackCorrection(img);
-  }
-
-  // Normalize to get actual coordinates (if finite)
+  // Get Euclidean coordinates if finite
   const vx = vxFinite ? { x: Vx.x / Vx.w, y: Vx.y / Vx.w } : null;
   const vy = vyFinite ? { x: Vy.x / Vy.w, y: Vy.y / Vy.w } : null;
 
   console.log('Vanishing point Vx (Euclidean):', vx);
   console.log('Vanishing point Vy (Euclidean):', vy);
 
-  // Step 2: Compute the horizon line (line at infinity of the scene plane)
-  // This is the line passing through both vanishing points
-  // In homogeneous coords: l = Vx × Vy
-  const horizon = crossProduct(Vx, Vy);
-
-  // Normalize the horizon line coefficients
-  const horizonNorm = Math.sqrt(horizon[0] * horizon[0] + horizon[1] * horizon[1]);
-  if (horizonNorm < 1e-10) {
-    console.log('Degenerate horizon line');
-    return fallbackCorrection(img);
-  }
-
-  // Horizon line: l = (l1, l2, l3) where l1*x + l2*y + l3 = 0
-  const l1 = horizon[0] / horizon[2];
-  const l2 = horizon[1] / horizon[2];
-
-  console.log('Horizon line coefficients (normalized):', l1, l2);
-
-  // Step 3: Build the affine rectification homography
-  // Ha maps the horizon line to the line at infinity
-  // Ha = [[1, 0, 0], [0, 1, 0], [l1, l2, 1]]
-  const Ha = [
-    [1, 0, 0],
-    [0, 1, 0],
-    [l1, l2, 1]
-  ];
-
-  console.log('Affine rectification matrix Ha:', Ha);
-
-  // Step 4: After affine rectification, we need to rotate/scale to make
-  // the axes truly horizontal and vertical
-  //
-  // Transform the vanishing point directions through Ha to get
-  // the rectified directions, then compute rotation to align them
-
-  // Direction from image center to Vx (before rectification)
-  const imgCenterX = img.width / 2;
-  const imgCenterY = img.height / 2;
-
-  // Get average direction of horizontal lines
+  // Get line angles for rotation calculation
   const hAngle1 = lineAngle(x1);
   const hAngle2 = lineAngle(x2);
-  let avgHAngle = (hAngle1 + hAngle2) / 2;
+  const avgHAngle = (hAngle1 + hAngle2) / 2;
 
-  // Get average direction of vertical lines
   const vAngle1 = lineAngle(y1);
   const vAngle2 = lineAngle(y2);
-  let avgVAngle = (vAngle1 + vAngle2) / 2;
+  const avgVAngle = (vAngle1 + vAngle2) / 2;
 
   console.log('Average horizontal angle:', avgHAngle * 180 / Math.PI, 'degrees');
   console.log('Average vertical angle:', avgVAngle * 180 / Math.PI, 'degrees');
 
-  // After affine rectification, the horizontal lines should become parallel
-  // but may not be perfectly horizontal. We need a rotation.
+  // Step 2: Build the affine rectification homography
+  // The horizon line passes through both vanishing points
+  // We use the normalized form for stability
 
-  // Transform a horizontal direction vector through Ha
-  // A point at (cx + cos(hAngle), cy + sin(hAngle)) maps to...
+  let Ha;
+
+  if (vxFinite && vyFinite) {
+    // Both vanishing points are finite - compute horizon line
+    // Horizon line: l = (l1, l2, l3) passes through Vx and Vy
+    // l1*(x) + l2*(y) + l3 = 0
+
+    // Direction from Vx to Vy
+    const dx = vy.x - vx.x;
+    const dy = vy.y - vx.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+
+    if (len < 1e-6) {
+      console.log('Vanishing points too close');
+      return fallbackCorrection(img);
+    }
+
+    // Line through Vx and Vy: normal is perpendicular to direction
+    // l1 = dy/len, l2 = -dx/len (normalized normal)
+    // l3 = -(l1*vx.x + l2*vx.y)
+    const l1 = dy / len;
+    const l2 = -dx / len;
+    const l3 = -(l1 * vx.x + l2 * vx.y);
+
+    console.log('Horizon line (l1, l2, l3):', l1, l2, l3);
+
+    // The affine rectification homography maps horizon line to line at infinity
+    // Ha = [[1, 0, 0], [0, 1, 0], [l1/l3, l2/l3, 1]] when l3 != 0
+    // But we need to be careful about the sign and magnitude
+
+    // Scale factor to prevent extreme distortion
+    // The idea: l1*x + l2*y + l3 = 0 defines the horizon
+    // At image center: value = l1*cx + l2*cy + l3
+    const centerValue = l1 * imgCenterX + l2 * imgCenterY + l3;
+    console.log('Horizon line value at image center:', centerValue);
+
+    // The correction strength should be proportional to how far the horizon is
+    // A far horizon (large |l3|) means less distortion needed
+    // We normalize by the distance from the image center to the horizon line
+
+    if (Math.abs(l3) < 1e-6) {
+      // Horizon passes through origin - use a different approach
+      Ha = [
+        [1, 0, 0],
+        [0, 1, 0],
+        [l1 / 1000, l2 / 1000, 1]  // Small correction
+      ];
+    } else {
+      // Standard case: normalize by l3
+      // The sign of l3 determines direction of correction
+      // We want points on the "near" side (same side as image center) to expand less
+
+      // Ensure consistent direction: if horizon is above image center, l3 should be positive
+      // (so that the correction expands the top and contracts the bottom)
+      let sign = Math.sign(centerValue);
+      if (sign === 0) sign = 1;
+
+      const correctionScale = sign / Math.abs(l3);
+
+      Ha = [
+        [1, 0, 0],
+        [0, 1, 0],
+        [l1 * correctionScale, l2 * correctionScale, 1]
+      ];
+    }
+  } else if (vyFinite) {
+    // Only vertical VP is finite - just do vertical keystone
+    // This means horizontal lines are already parallel
+    const distY = vy.y - imgCenterY;
+    const distX = vy.x - imgCenterX;
+    const dist = Math.sqrt(distX * distX + distY * distY);
+
+    if (dist < 100) {
+      console.log('Vertical VP too close to image center');
+      return fallbackCorrection(img);
+    }
+
+    // Keystone correction based on VP position
+    // The further the VP, the less correction needed
+    const strength = 1 / dist;
+
+    Ha = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [distX * strength * 0.001, distY * strength * 0.001, 1]
+    ];
+  } else if (vxFinite) {
+    // Only horizontal VP is finite - just do horizontal keystone
+    const distY = vx.y - imgCenterY;
+    const distX = vx.x - imgCenterX;
+    const dist = Math.sqrt(distX * distX + distY * distY);
+
+    if (dist < 100) {
+      console.log('Horizontal VP too close to image center');
+      return fallbackCorrection(img);
+    }
+
+    const strength = 1 / dist;
+
+    Ha = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [distX * strength * 0.001, distY * strength * 0.001, 1]
+    ];
+  } else {
+    // Both VPs at infinity - no perspective correction needed
+    console.log('Both VPs at infinity - no perspective correction needed');
+    Ha = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  }
+
+  console.log('Affine rectification matrix Ha:', Ha);
+
+  // Step 3: Compute rotation to make horizontal lines truly horizontal
+  // Transform test points through Ha to see the rectified angle
   const testPt1 = applyHomography(Ha, imgCenterX, imgCenterY);
   const testPt2 = applyHomography(Ha, imgCenterX + Math.cos(avgHAngle) * 100, imgCenterY + Math.sin(avgHAngle) * 100);
 
@@ -247,14 +284,11 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
     return fallbackCorrection(img);
   }
 
-  // Direction after affine rectification
   const rectifiedHAngle = Math.atan2(testPt2.y - testPt1.y, testPt2.x - testPt1.x);
   console.log('Rectified horizontal angle:', rectifiedHAngle * 180 / Math.PI, 'degrees');
 
-  // Rotation needed to make horizontal lines truly horizontal
   const rotationAngle = -rectifiedHAngle;
 
-  // Build rotation matrix (around origin)
   const cos = Math.cos(rotationAngle);
   const sin = Math.sin(rotationAngle);
   const Hr = [
@@ -263,11 +297,10 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
     [0, 0, 1]
   ];
 
-  // Combined homography: H = Hr * Ha
-  // But we also need to handle translation to keep the image centered
+  // Combined homography (without translation)
   const H_noTranslate = matMult(Hr, Ha);
 
-  // Step 5: Compute output bounds by transforming image corners
+  // Step 4: Compute output bounds
   const corners = [
     { x: 0, y: 0 },
     { x: img.width, y: 0 },
@@ -285,7 +318,6 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
     transformedCorners.push(tc);
   }
 
-  // Find bounding box
   const xs = transformedCorners.map(c => c.x);
   const ys = transformedCorners.map(c => c.y);
   const minX = Math.min(...xs);
@@ -293,54 +325,59 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
 
-  console.log('Output bounds:', minX, minY, maxX, maxY);
+  console.log('Output bounds:', minX, minY, 'to', maxX, maxY);
 
-  // Add translation to shift output to positive coordinates
+  // Check for extreme distortion
+  const outWidth = maxX - minX;
+  const outHeight = maxY - minY;
+  const aspectRatio = outWidth / outHeight;
+  const originalAspect = img.width / img.height;
+
+  if (aspectRatio > originalAspect * 5 || aspectRatio < originalAspect / 5) {
+    console.log('Extreme aspect ratio distortion detected, using fallback');
+    return fallbackCorrection(img);
+  }
+
+  // Translation to shift output to positive coordinates
   const Ht = [
     [1, 0, -minX],
     [0, 1, -minY],
     [0, 0, 1]
   ];
 
-  // Final homography: H = Ht * Hr * Ha
-  const H = matMult(Ht, H_noTranslate);
+  // Final homography
+  let H = matMult(Ht, H_noTranslate);
 
-  console.log('Final homography H:', H);
+  // Output dimensions with size limit
+  let finalWidth = Math.ceil(outWidth);
+  let finalHeight = Math.ceil(outHeight);
 
-  // Output dimensions
-  let outWidth = Math.ceil(maxX - minX);
-  let outHeight = Math.ceil(maxY - minY);
-
-  // Limit size to prevent memory issues
   const maxDim = 4096;
   let scale = 1;
-  if (outWidth > maxDim || outHeight > maxDim) {
-    scale = maxDim / Math.max(outWidth, outHeight);
-    outWidth = Math.ceil(outWidth * scale);
-    outHeight = Math.ceil(outHeight * scale);
+  if (finalWidth > maxDim || finalHeight > maxDim) {
+    scale = maxDim / Math.max(finalWidth, finalHeight);
+    finalWidth = Math.ceil(finalWidth * scale);
+    finalHeight = Math.ceil(finalHeight * scale);
 
-    // Add scaling to the homography
     const Hs = [[scale, 0, 0], [0, scale, 0], [0, 0, 1]];
-    const H_scaled = matMult(Hs, H);
-    H[0] = H_scaled[0];
-    H[1] = H_scaled[1];
-    H[2] = H_scaled[2];
+    H = matMult(Hs, H);
   }
 
-  // Compute inverse homography for backward mapping
+  console.log('Final output size:', finalWidth, 'x', finalHeight);
+
+  // Inverse homography for backward mapping
   const Hinv = invertMatrix3x3(H);
   if (!Hinv) {
     console.log('Failed to invert homography');
     return fallbackCorrection(img);
   }
 
-  // Step 6: Warp the image
+  // Step 5: Warp the image
   const canvas = document.createElement('canvas');
-  canvas.width = outWidth;
-  canvas.height = outHeight;
+  canvas.width = finalWidth;
+  canvas.height = finalHeight;
   const ctx = canvas.getContext('2d');
 
-  // Get source image data
   const srcCanvas = document.createElement('canvas');
   srcCanvas.width = img.width;
   srcCanvas.height = img.height;
@@ -348,28 +385,23 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
   srcCtx.drawImage(img, 0, 0);
   const srcData = srcCtx.getImageData(0, 0, img.width, img.height);
 
-  // Create output image data
-  const imageData = ctx.createImageData(outWidth, outHeight);
+  const imageData = ctx.createImageData(finalWidth, finalHeight);
 
-  // Backward mapping with bilinear interpolation
-  for (let outY = 0; outY < outHeight; outY++) {
-    for (let outX = 0; outX < outWidth; outX++) {
-      // Map output pixel to source using inverse homography
+  for (let outY = 0; outY < finalHeight; outY++) {
+    for (let outX = 0; outX < finalWidth; outX++) {
       const srcPt = applyHomography(Hinv, outX, outY);
-
       if (!srcPt) continue;
 
       const sx = srcPt.x;
       const sy = srcPt.y;
 
-      // Bilinear interpolation
       if (sx >= 0 && sx < img.width - 1 && sy >= 0 && sy < img.height - 1) {
         const sx0 = Math.floor(sx);
         const sy0 = Math.floor(sy);
         const fx = sx - sx0;
         const fy = sy - sy0;
 
-        const idx = (outY * outWidth + outX) * 4;
+        const idx = (outY * finalWidth + outX) * 4;
 
         for (let c = 0; c < 4; c++) {
           const i00 = (sy0 * img.width + sx0) * 4 + c;
@@ -392,8 +424,8 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
 
   return {
     canvas,
-    width: outWidth,
-    height: outHeight
+    width: finalWidth,
+    height: finalHeight
   };
 }
 
