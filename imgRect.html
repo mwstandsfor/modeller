@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ratio-Scaled Perspective Rectifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+
+    <style>
+        body { 
+            background-color: #161616; 
+            color: white; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none; 
+        }
+        
+        #input-container {
+            background-image: 
+                linear-gradient(45deg, #1e293b 25%, transparent 25%), 
+                linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #1e293b 75%), 
+                linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .canvas-shadow {
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        #loading {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; justify-content: center; align-items: center; z-index: 50;
+        }
+        
+        .spinner {
+            border: 4px solid #334155; border-top: 4px solid #3b82f6;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Custom slider track styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        /* Custom slider thumb styling */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+            margin-top: -5px; 
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen">
+
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <h2 class="text-xl font-bold text-white">Loading Engine...</h2>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <div class="h-16 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-6 shrink-0 z-10">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-expand text-blue-500 text-xl"></i>
+            <h1 class="font-bold text-lg tracking-wide">Ratio-Scaled Rectify<span class="text-blue-500">Editor</span></h1>
+        </div>
+        
+        <div class="flex gap-3">
+            <input type="file" id="fileInput" accept="image/*" class="hidden">
+            
+            <button onclick="document.getElementById('fileInput').click()" 
+                class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+                <i class="fa-solid fa-upload"></i> Upload
+            </button>
+            
+            <button onclick="resetPoints()" 
+                class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+                <i class="fa-solid fa-eraser"></i> Clear Points
+            </button>
+        </div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Left: Input 2D -->
+        <div id="input-container" class="flex-1 relative border-r border-slate-700 overflow-hidden flex items-center justify-center">
+            <div id="empty-state" class="text-slate-500 text-center pointer-events-none">
+                <i class="fa-solid fa-image text-4xl mb-2"></i>
+                <p>Upload an image to start</p>
+            </div>
+            
+            <canvas id="inputCanvas" class="canvas-shadow hidden"></canvas>
+            
+            <div id="instructions" class="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium border border-white/10 hidden pointer-events-none select-none">
+                <span id="instruction-text">Click corners to define area</span> (<span id="point-counter">0</span>/4)
+            </div>
+        </div>
+
+        <!-- Right: Output 3D -->
+        <div class="flex-1 relative bg-slate-950">
+            <div id="three-container" class="w-full h-full"></div>
+            
+            <!-- Info box moved to top right -->
+            <div class="absolute top-4 right-4 bg-slate-900/80 backdrop-blur border border-slate-700 p-3 rounded-lg max-w-xs select-none">
+                <p class="text-xs text-slate-300">
+                    <i class="fa-solid fa-mouse-pointer mr-1"></i> Drag points to refine the selection.
+                </p>
+                <p class="text-xs text-yellow-400 mt-1">
+                    <i class="fa-solid fa-lightbulb mr-1"></i> Output includes the full uncropped image.
+                </p>
+            </div>
+
+            <!-- Ratio Slider Control -->
+            <div id="ratio-control" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur border border-slate-700 p-4 rounded-xl flex items-center justify-center gap-4" style="width: 80%;">
+                <label for="ratioSlider" class="text-sm font-semibold text-slate-300 whitespace-nowrap shrink-0">
+                    Ratio Scale: <span id="ratioValue" class="text-blue-400 font-bold">1.00</span>x
+                </label>
+                <input type="range" id="ratioSlider" min="0.5" max="2.0" value="1.0" step="0.01" class="flex-1">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let openCvReady = false;
+        let points = []; 
+        let inputImage = new Image();
+        let isImageLoaded = false;
+        let isDragging = false;
+        let dragIndex = -1;
+        let hoverIndex = -1;
+        let ratioScale = 1.0; 
+        const HIT_RADIUS = 20; 
+        
+        // --- Elements ---
+        const inputCanvas = document.getElementById('inputCanvas');
+        const inputCtx = inputCanvas.getContext('2d');
+        const threeContainer = document.getElementById('three-container');
+        const pointCounter = document.getElementById('point-counter');
+        const instructionText = document.getElementById('instruction-text');
+        const ratioSlider = document.getElementById('ratioSlider');
+        const ratioValueDisplay = document.getElementById('ratioValue');
+
+        // --- Three.js Globals ---
+        let scene, camera, renderer, planeMesh, texture;
+
+        // --- Initialization ---
+        function onOpenCvReady() {
+            openCvReady = true;
+            document.getElementById('loading').style.display = 'none';
+            initThreeJS();
+        }
+
+        // --- Event Listeners for Ratio Control ---
+        ratioSlider.addEventListener('input', (e) => {
+            ratioScale = parseFloat(e.target.value);
+            ratioValueDisplay.innerText = ratioScale.toFixed(2);
+            if (points.length === 4) {
+                processImage(); // Recalculate and re-render the 3D output instantly
+            }
+        });
+
+
+        // --- File Upload & Sizing ---
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader(); 
+            reader.onload = (event) => {
+                inputImage = new Image();
+                inputImage.onload = () => {
+                    isImageLoaded = true;
+                    points = [];
+                    // Reset ratio scale on new image load
+                    ratioScale = 1.0;
+                    ratioSlider.value = 1.0;
+                    ratioValueDisplay.innerText = "1.00"; 
+                    
+                    updateUIState();
+                    fitCanvasToImage();
+                    
+                    document.getElementById('empty-state').style.display = 'none';
+                    document.getElementById('instructions').style.display = 'block';
+                    inputCanvas.classList.remove('hidden');
+                    drawUI();
+                };
+                inputImage.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function fitCanvasToImage() {
+            if (!isImageLoaded) return;
+            const container = document.getElementById('input-container');
+            const pad = 40;
+            const cw = container.clientWidth - pad;
+            const ch = container.clientHeight - pad;
+            const imgRatio = inputImage.width / inputImage.height;
+            const containerRatio = cw / ch;
+            let finalW, finalH;
+
+            if (containerRatio > imgRatio) {
+                finalH = ch;
+                finalW = finalH * imgRatio;
+            } else {
+                finalW = cw;
+                finalH = finalW / imgRatio;
+            }
+
+            inputCanvas.width = inputImage.width;
+            inputCanvas.height = inputImage.height;
+            inputCanvas.style.width = `${finalW}px`;
+            inputCanvas.style.height = `${finalH}px`;
+        }
+
+        // --- Mouse Interaction ---
+        function getMousePos(evt) {
+            const rect = inputCanvas.getBoundingClientRect();
+            const scaleX = inputCanvas.width / rect.width;
+            const scaleY = inputCanvas.height / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        function getPointAt(pos) {
+            const scaledRadius = Math.max(HIT_RADIUS, inputCanvas.width / 50);
+
+            for (let i = 0; i < points.length; i++) {
+                const dist = Math.sqrt(Math.pow(pos.x - points[i].x, 2) + Math.pow(pos.y - points[i].y, 2));
+                if (dist < scaledRadius) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        inputCanvas.addEventListener('mousedown', (e) => {
+            if (!isImageLoaded) return;
+            const pos = getMousePos(e);
+            const index = getPointAt(pos);
+
+            if (index !== -1) {
+                isDragging = true;
+                dragIndex = index;
+            } else if (points.length < 4) {
+                points.push(pos);
+                updateUIState();
+                if (points.length === 4) {
+                    processImage();
+                }
+            }
+            drawUI();
+        });
+
+        inputCanvas.addEventListener('mousemove', (e) => {
+            if (!isImageLoaded) return;
+            const pos = getMousePos(e);
+
+            if (isDragging && dragIndex !== -1) {
+                points[dragIndex] = pos;
+                drawUI(); 
+            } else {
+                hoverIndex = getPointAt(pos);
+                inputCanvas.style.cursor = (hoverIndex !== -1) ? 'move' : (points.length < 4 ? 'crosshair' : 'default');
+                drawUI();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                dragIndex = -1;
+                if (points.length === 4) {
+                    processImage();
+                }
+            }
+        });
+
+        // --- UI Drawing ---
+        function updateUIState() {
+            pointCounter.innerText = points.length;
+            if (points.length === 4) {
+                instructionText.innerText = "Drag points to refine";
+            } else {
+                instructionText.innerText = "Click corners to define area";
+            }
+        }
+
+        function resetPoints() {
+            points = [];
+            updateUIState();
+            drawUI();
+        }
+
+        function drawUI() {
+            // Always draw the base image first
+            inputCtx.drawImage(inputImage, 0, 0);
+            
+            // Then draw the UI overlays (markers and lines)
+            const lineWidth = Math.max(2, inputCanvas.width / 300);
+            const radius = Math.max(5, inputCanvas.width / 100);
+
+            if (points.length > 0) {
+                inputCtx.beginPath();
+                inputCtx.lineWidth = lineWidth;
+                inputCtx.strokeStyle = '#3b82f6';
+                inputCtx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    inputCtx.lineTo(points[i].x, points[i].y);
+                }
+                if (points.length === 4) inputCtx.closePath();
+                inputCtx.stroke();
+            }
+
+            points.forEach((p, i) => {
+                inputCtx.beginPath();
+                inputCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                
+                if (i === dragIndex) inputCtx.fillStyle = '#22c55e';
+                else if (i === hoverIndex) inputCtx.fillStyle = '#facc15';
+                else inputCtx.fillStyle = '#ef4444';
+                
+                inputCtx.fill();
+                inputCtx.lineWidth = lineWidth / 2;
+                inputCtx.strokeStyle = 'white';
+                inputCtx.stroke();
+            });
+        }
+
+        // --- Math Helpers ---
+        function distance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function sortPoints(pts) {
+            const sortedByY = [...pts].sort((a, b) => a.y - b.y);
+            const top = sortedByY.slice(0, 2).sort((a, b) => a.x - b.x); 
+            const bottom = sortedByY.slice(2, 4).sort((a, b) => a.x - b.x);
+            // Result is [Top-Left, Top-Right, Bottom-Right, Bottom-Left]
+            return [top[0], top[1], bottom[1], bottom[0]];
+        }
+
+        // --- CORE UNCROPPED & SCALED PROCESSING LOGIC ---
+        function processImage() {
+            if (!openCvReady || points.length !== 4) return;
+
+            // 0. Create a clean canvas for OpenCV to read from (FIX for marker bleed)
+            const cleanCanvas = document.createElement('canvas');
+            cleanCanvas.width = inputImage.width;
+            cleanCanvas.height = inputImage.height;
+            const cleanCtx = cleanCanvas.getContext('2d');
+            cleanCtx.drawImage(inputImage, 0, 0);
+
+            try {
+                const sorted = sortPoints(points);
+                
+                // Calculate baseline width and height based on point distances
+                const widthTop = distance(sorted[0], sorted[1]);
+                const widthBottom = distance(sorted[3], sorted[2]);
+                const maxWidth = Math.max(widthTop, widthBottom);
+
+                const heightLeft = distance(sorted[0], sorted[3]);
+                const heightRight = distance(sorted[1], sorted[2]);
+                
+                // Apply the user's ratio scale to the calculated height baseline
+                const targetHeight = Math.max(heightLeft, heightRight) * ratioScale;
+
+                // Read from the clean canvas
+                let src = cv.imread(cleanCanvas);
+                
+                // 1. Calculate the Homography Matrix (M) that rectifies the quad
+                let srcQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                    sorted[0].x, sorted[0].y,
+                    sorted[1].x, sorted[1].y,
+                    sorted[2].x, sorted[2].y,
+                    sorted[3].x, sorted[3].y
+                ]);
+
+                // The destination quad uses the scaled height
+                let dstQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                    0, 0,
+                    maxWidth, 0,
+                    maxWidth, targetHeight,
+                    0, targetHeight
+                ]);
+
+                let M = cv.getPerspectiveTransform(srcQuad, dstQuad);
+
+                // 2. Find the bounding box for the FULL warped image
+                let imageCorners = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                    0, 0,                      
+                    src.cols, 0,               
+                    src.cols, src.rows,        
+                    0, src.rows                
+                ]);
+
+                let warpedCorners = new cv.Mat();
+                cv.perspectiveTransform(imageCorners, warpedCorners, M);
+
+                let min_x = Infinity, min_y = Infinity;
+                let max_x = -Infinity, max_y = -Infinity;
+                
+                for (let i = 0; i < 4; i++) {
+                    const x = warpedCorners.data32F[i * 2];
+                    const y = warpedCorners.data32F[i * 2 + 1];
+                    min_x = Math.min(min_x, x);
+                    min_y = Math.min(min_y, y);
+                    max_x = Math.max(max_x, x);
+                    max_y = Math.max(max_y, y);
+                }
+                
+                let finalWidth = Math.round(max_x - min_x);
+                let finalHeight = Math.round(max_y - min_y);
+                
+                // Safety Cap
+                if (finalWidth > 5000 || finalHeight > 5000) {
+                     console.warn("WARNING: Resulting image dimensions are very large. Capping at 5000px on the longest side to prevent browser crash.");
+                     const scaleFactor = Math.min(1, 5000 / finalWidth, 5000 / finalHeight);
+                     finalWidth = Math.round(finalWidth * scaleFactor);
+                     finalHeight = Math.round(finalHeight * scaleFactor);
+                }
+
+                // 3. Create the Final Transformation Matrix (M_final)
+                let translationMatrix = cv.matFromArray(3, 3, cv.CV_64F, [
+                    1, 0, -min_x,
+                    0, 1, -min_y,
+                    0, 0, 1
+                ]);
+
+                let M_final = new cv.Mat();
+                cv.gemm(translationMatrix, M, 1, new cv.Mat(), 0, M_final); 
+                
+                // 4. Warp the full image
+                let dst = new cv.Mat();
+                let dsize = new cv.Size(finalWidth, finalHeight);
+                
+                // Fill background with transparent black
+                cv.warpPerspective(src, dst, M_final, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0)); 
+
+                // 5. Convert Result to standard Canvas for Three.js
+                let outputCanvas = document.createElement('canvas');
+                outputCanvas.width = finalWidth;
+                outputCanvas.height = finalHeight;
+                cv.imshow(outputCanvas, dst);
+
+                // 6. Update 3D Scene
+                update3DScene(outputCanvas, finalWidth, finalHeight);
+
+                // Cleanup
+                src.delete(); dst.delete(); M.delete(); srcQuad.delete(); dstQuad.delete(); 
+                imageCorners.delete(); warpedCorners.delete(); translationMatrix.delete(); M_final.delete();
+
+            } catch (e) {
+                console.error("OpenCV Processing Error:", e);
+                instructionText.innerText = "Error processing image. Check console.";
+            } finally {
+                // Ensure the temporary canvas is deleted
+                cleanCanvas.remove();
+            }
+        }
+
+        // --- Three.js Logic (Unchanged) ---
+        function initThreeJS() {
+            const w = threeContainer.clientWidth;
+            const h = threeContainer.clientHeight;
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            threeContainer.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+            scene.add(ambientLight);
+
+            const geometry = new THREE.PlaneGeometry(1, 1);
+            const mat = new THREE.MeshBasicMaterial({ color: 0x334155, side: THREE.DoubleSide });
+            planeMesh = new THREE.Mesh(geometry, mat);
+            scene.add(planeMesh);
+
+            camera.position.z = 3.5;
+            animate();
+        }
+
+        function update3DScene(canvasSource, width, height) {
+            if (texture) texture.dispose();
+            texture = new THREE.CanvasTexture(canvasSource);
+            texture.minFilter = THREE.LinearFilter;
+            
+            planeMesh.material.map = texture;
+            planeMesh.material.color.setHex(0xffffff);
+            planeMesh.material.needsUpdate = true;
+
+            const aspectRatio = width / height;
+            
+            if (aspectRatio > 1) {
+                planeMesh.scale.set(2.0, 2.0 / aspectRatio, 1);
+            } else {
+                planeMesh.scale.set(2.0 * aspectRatio, 2.0, 1);
+            }
+
+            planeMesh.rotation.set(0, 0, 0); 
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (planeMesh && texture) {
+                planeMesh.rotation.y = Math.sin(Date.now() * 0.0005) * 0.1;
+                planeMesh.rotation.x = Math.cos(Date.now() * 0.0005) * 0.05;
+            }
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            if (!camera || !renderer) return;
+            fitCanvasToImage();
+            const w = threeContainer.clientWidth;
+            const h = threeContainer.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+    </script>
+</body>
+</html>
