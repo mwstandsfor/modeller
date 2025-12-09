@@ -39,6 +39,7 @@ class App {
     this.perspectiveOverlay.onReady = (points) => {
       this.pendingPerspectivePoints = points;
       this.showRatioSlider();
+      this.updatePerspectivePreview(); // Show initial preview
       this.showApproveButton(() => {
         const points = this.pendingPerspectivePoints;
         this.pendingPerspectivePoints = null;
@@ -48,7 +49,7 @@ class App {
     // Live preview when dragging corners
     this.perspectiveOverlay.onChange = (points) => {
       this.pendingPerspectivePoints = points;
-      // Live preview could be added here in future
+      this.updatePerspectivePreview();
     };
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
@@ -121,6 +122,8 @@ class App {
         if (this.ratioValueDisplay) {
           this.ratioValueDisplay.textContent = this.ratioScale.toFixed(2);
         }
+        // Update preview with new ratio
+        this.updatePerspectivePreview();
       });
     }
 
@@ -369,6 +372,77 @@ class App {
   }
 
   /**
+   * Update perspective preview when points or ratio changes
+   */
+  async updatePerspectivePreview() {
+    if (!this.pendingPerspectivePoints || this.pendingPerspectivePoints.length !== 4) {
+      return;
+    }
+
+    if (!this.currentImageElement || !this.currentImageElement.complete) {
+      return;
+    }
+
+    // Wait for OpenCV if not ready
+    if (!isOpenCVReady()) {
+      try {
+        await waitForOpenCV();
+      } catch (error) {
+        console.error('OpenCV not ready for preview');
+        return;
+      }
+    }
+
+    try {
+      const canvasWidth = this.overlayCanvas.width;
+      const canvasHeight = this.overlayCanvas.height;
+
+      const result = await perspectiveTransform(
+        this.pendingPerspectivePoints,
+        this.currentImageElement,
+        canvasWidth,
+        canvasHeight,
+        this.ratioScale
+      );
+
+      // Update the image plane texture with the preview
+      if (this.imagePlane && this.imagePlane.mesh) {
+        const previewTexture = new THREE.CanvasTexture(result.canvas);
+        previewTexture.colorSpace = THREE.SRGBColorSpace;
+
+        // Update geometry to match new aspect ratio
+        const maxSize = 2;
+        const aspect = result.width / result.height;
+        let width, height;
+
+        if (aspect > 1) {
+          width = maxSize;
+          height = maxSize / aspect;
+        } else {
+          height = maxSize;
+          width = maxSize * aspect;
+        }
+
+        // Update plane geometry
+        this.imagePlane.mesh.geometry.dispose();
+        this.imagePlane.mesh.geometry = new THREE.PlaneGeometry(width, height);
+
+        // Update texture
+        if (this.imagePlane.mesh.material.map) {
+          this.imagePlane.mesh.material.map.dispose();
+        }
+        this.imagePlane.mesh.material.map = previewTexture;
+        this.imagePlane.mesh.material.needsUpdate = true;
+
+        // Store for final application
+        this.previewCanvas = result.canvas;
+      }
+    } catch (error) {
+      console.error('Preview update failed:', error);
+    }
+  }
+
+  /**
    * Skip perspective correction and use original image
    */
   async skipPerspective() {
@@ -589,24 +663,28 @@ class App {
   async onPerspectiveComplete(points) {
     console.log('Perspective points:', points);
 
-    if (!this.currentImageElement || !this.currentImageElement.complete) {
-      console.error('Image not loaded');
-      return;
-    }
+    // Use preview canvas if available (already computed)
+    let resultCanvas = this.previewCanvas;
 
-    // Wait for OpenCV to be ready
-    if (!isOpenCVReady()) {
-      try {
-        console.log('Waiting for OpenCV...');
-        await waitForOpenCV();
-      } catch (error) {
-        console.error('OpenCV failed to load:', error);
-        alert('OpenCV failed to load. Please refresh the page.');
+    if (!resultCanvas) {
+      // Need to compute the transform
+      if (!this.currentImageElement || !this.currentImageElement.complete) {
+        console.error('Image not loaded');
         return;
       }
-    }
 
-    try {
+      // Wait for OpenCV to be ready
+      if (!isOpenCVReady()) {
+        try {
+          console.log('Waiting for OpenCV...');
+          await waitForOpenCV();
+        } catch (error) {
+          console.error('OpenCV failed to load:', error);
+          alert('OpenCV failed to load. Please refresh the page.');
+          return;
+        }
+      }
+
       const canvasWidth = this.overlayCanvas.width;
       const canvasHeight = this.overlayCanvas.height;
 
@@ -618,8 +696,12 @@ class App {
         this.ratioScale
       );
 
+      resultCanvas = result.canvas;
+    }
+
+    try {
       // Store corrected canvas for export
-      this.correctedCanvas = result.canvas;
+      this.correctedCanvas = resultCanvas;
 
       // Remove original image plane
       if (this.imagePlane) {
@@ -629,12 +711,12 @@ class App {
       }
 
       // Create texture from corrected image
-      const correctedTexture = new THREE.CanvasTexture(result.canvas);
+      const correctedTexture = new THREE.CanvasTexture(resultCanvas);
       correctedTexture.colorSpace = THREE.SRGBColorSpace;
 
       // Calculate plane dimensions
       const maxSize = 2;
-      const aspect = result.width / result.height;
+      const aspect = resultCanvas.width / resultCanvas.height;
       let width, height;
 
       if (aspect > 1) {
@@ -648,6 +730,9 @@ class App {
       // Create editable mesh
       this.editableMesh = new EditableMesh();
       this.editableMesh.createFromDimensions(width, height, correctedTexture);
+
+      // Clear preview canvas reference
+      this.previewCanvas = null;
 
       // Add mesh and wireframe to scene
       this.scene.add(this.editableMesh.mesh);
