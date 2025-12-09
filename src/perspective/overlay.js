@@ -419,6 +419,33 @@ export class PerspectiveOverlay {
   }
 
   /**
+   * Undo the last drawn line
+   * Returns true if a line was undone, false if nothing to undo
+   */
+  undoLastLine() {
+    if (this.currentLineIndex > 0) {
+      // Undo the most recently drawn line
+      this.currentLineIndex--;
+      const key = this.lineOrder[this.currentLineIndex];
+      this.lines[key] = null;
+      this.selectedLine = null;
+      this.currentLine = null;
+      this.startPoint = null;
+      this.isDrawing = false;
+      this.draw();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if there are any lines that can be undone
+   */
+  canUndo() {
+    return this.currentLineIndex > 0;
+  }
+
+  /**
    * Reset the overlay
    */
   reset() {

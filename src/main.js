@@ -799,6 +799,16 @@ class App {
    * Undo
    */
   undo() {
+    // Special case: in perspective mode, undo the last drawn line
+    if (this.modeManager.currentMode === Modes.PERSPECTIVE) {
+      if (this.perspectiveOverlay.canUndo()) {
+        this.perspectiveOverlay.undoLastLine();
+        this.hideApproveButton();  // Hide approve button if visible
+        return;
+      }
+      // If no lines to undo, fall through to history undo (which will restore original image)
+    }
+
     const state = this.getSerializableState();
     const previousState = this.history.undo(state);
 

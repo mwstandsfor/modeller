@@ -108,6 +108,32 @@ export function lineAngle(line) {
 }
 
 /**
+ * Normalize a line so it points in a consistent direction
+ * For horizontal lines: point generally to the right (angle between -PI/2 and PI/2)
+ * For vertical lines: point generally upward (angle between -PI and 0)
+ */
+function normalizeLine(line, isVertical = false) {
+  const angle = lineAngle(line);
+
+  if (isVertical) {
+    // Vertical lines should point upward (negative y direction)
+    // Angle should be between -PI and 0 (pointing up-left to up-right)
+    if (angle > 0) {
+      // Flip the line
+      return { start: line.end, end: line.start };
+    }
+  } else {
+    // Horizontal lines should point right
+    // Angle should be between -PI/2 and PI/2
+    if (Math.abs(angle) > Math.PI / 2) {
+      // Flip the line
+      return { start: line.end, end: line.start };
+    }
+  }
+  return line;
+}
+
+/**
  * Main perspective transform function
  */
 export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight) {
@@ -120,15 +146,24 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
     end: { x: line.end.x * scaleX, y: line.end.y * scaleY }
   });
 
-  const x1 = scaleLine(lines.x1);
-  const x2 = scaleLine(lines.x2);
-  const y1 = scaleLine(lines.y1);
-  const y2 = scaleLine(lines.y2);
+  // Scale and normalize lines for consistent direction
+  // This ensures the algorithm is independent of how lines were drawn
+  const x1Raw = scaleLine(lines.x1);
+  const x2Raw = scaleLine(lines.x2);
+  const y1Raw = scaleLine(lines.y1);
+  const y2Raw = scaleLine(lines.y2);
+
+  // Normalize line directions
+  const x1 = normalizeLine(x1Raw, false);  // Horizontal, point right
+  const x2 = normalizeLine(x2Raw, false);
+  const y1 = normalizeLine(y1Raw, true);   // Vertical, point up
+  const y2 = normalizeLine(y2Raw, true);
 
   const imgCenterX = img.width / 2;
   const imgCenterY = img.height / 2;
 
   // Step 1: Compute vanishing points
+  // Note: VP computation is independent of line direction
   const Vx = lineIntersectionHomogeneous(x1, x2); // Horizontal VP
   const Vy = lineIntersectionHomogeneous(y1, y2); // Vertical VP
 
@@ -146,7 +181,7 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
   console.log('Vanishing point Vx (Euclidean):', vx);
   console.log('Vanishing point Vy (Euclidean):', vy);
 
-  // Get line angles for rotation calculation
+  // Get line angles for rotation calculation (now using normalized lines)
   const hAngle1 = lineAngle(x1);
   const hAngle2 = lineAngle(x2);
   const avgHAngle = (hAngle1 + hAngle2) / 2;
@@ -155,6 +190,9 @@ export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight
   const vAngle2 = lineAngle(y2);
   const avgVAngle = (vAngle1 + vAngle2) / 2;
 
+  console.log('Normalized line angles:');
+  console.log('  X1:', hAngle1 * 180 / Math.PI, 'X2:', hAngle2 * 180 / Math.PI);
+  console.log('  Y1:', vAngle1 * 180 / Math.PI, 'Y2:', vAngle2 * 180 / Math.PI);
   console.log('Average horizontal angle:', avgHAngle * 180 / Math.PI, 'degrees');
   console.log('Average vertical angle:', avgVAngle * 180 / Math.PI, 'degrees');
 
