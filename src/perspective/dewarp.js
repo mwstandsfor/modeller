@@ -1,6 +1,13 @@
 /**
  * Perspective correction / dewarp utilities
- * Uses 4-line vanishing point approach (fSpy-style)
+ * Implements "Guided Upright" style correction (like Lightroom)
+ *
+ * User draws:
+ * - 2 lines that SHOULD BE horizontal (x1, x2)
+ * - 2 lines that SHOULD BE vertical (y1, y2)
+ *
+ * Algorithm computes a homography to straighten these lines
+ * and applies it to the entire image.
  */
 
 /**
@@ -16,9 +23,8 @@ export function lineIntersection(line1, line2) {
 
   const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
 
-  // Lines are parallel
   if (Math.abs(denom) < 0.0001) {
-    return null;
+    return null; // Parallel
   }
 
   const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
@@ -30,7 +36,7 @@ export function lineIntersection(line1, line2) {
 }
 
 /**
- * Get the angle of a line in radians
+ * Get the angle of a line in radians (-PI to PI)
  */
 export function lineAngle(line) {
   const dx = line.end.x - line.start.x;
@@ -39,309 +45,153 @@ export function lineAngle(line) {
 }
 
 /**
- * Calculate the average angle of two lines
+ * Normalize angle to be close to a target
  */
-function averageAngle(line1, line2) {
-  const angle1 = lineAngle(line1);
-  const angle2 = lineAngle(line2);
-
-  // Handle angle wrapping
-  let diff = angle2 - angle1;
-  if (diff > Math.PI) diff -= 2 * Math.PI;
-  if (diff < -Math.PI) diff += 2 * Math.PI;
-
-  return angle1 + diff / 2;
+function normalizeAngleNear(angle, target) {
+  while (angle - target > Math.PI) angle -= 2 * Math.PI;
+  while (angle - target < -Math.PI) angle += 2 * Math.PI;
+  return angle;
 }
 
 /**
- * Solve a 3x3 linear system using Gaussian elimination
- */
-function solve3x3(A, b) {
-  // Create augmented matrix
-  const M = [
-    [A[0][0], A[0][1], A[0][2], b[0]],
-    [A[1][0], A[1][1], A[1][2], b[1]],
-    [A[2][0], A[2][1], A[2][2], b[2]]
-  ];
-
-  // Forward elimination
-  for (let col = 0; col < 3; col++) {
-    // Find pivot
-    let maxRow = col;
-    for (let row = col + 1; row < 3; row++) {
-      if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) {
-        maxRow = row;
-      }
-    }
-    [M[col], M[maxRow]] = [M[maxRow], M[col]];
-
-    // Eliminate below
-    for (let row = col + 1; row < 3; row++) {
-      const factor = M[row][col] / M[col][col];
-      for (let j = col; j < 4; j++) {
-        M[row][j] -= factor * M[col][j];
-      }
-    }
-  }
-
-  // Back substitution
-  const x = [0, 0, 0];
-  for (let i = 2; i >= 0; i--) {
-    x[i] = M[i][3];
-    for (let j = i + 1; j < 3; j++) {
-      x[i] -= M[i][j] * x[j];
-    }
-    x[i] /= M[i][i];
-  }
-
-  return x;
-}
-
-/**
- * Calculate homography matrix from 4 point correspondences
- * srcPoints and dstPoints are arrays of 4 {x, y} points
- */
-function calculateHomography(srcPoints, dstPoints) {
-  // Build the system of equations
-  const A = [];
-  const b = [];
-
-  for (let i = 0; i < 4; i++) {
-    const sx = srcPoints[i].x;
-    const sy = srcPoints[i].y;
-    const dx = dstPoints[i].x;
-    const dy = dstPoints[i].y;
-
-    A.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]);
-    b.push(dx);
-    A.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]);
-    b.push(dy);
-  }
-
-  // Solve using least squares (pseudo-inverse)
-  // For simplicity, use a basic solver
-  const h = solveHomographySystem(A, b);
-
-  // Return 3x3 matrix
-  return [
-    [h[0], h[1], h[2]],
-    [h[3], h[4], h[5]],
-    [h[6], h[7], 1]
-  ];
-}
-
-/**
- * Solve the homography system using simple iterative approach
- */
-function solveHomographySystem(A, b) {
-  // This is a simplified solver - for 8 equations, 8 unknowns
-  // Using normal equations: A^T * A * x = A^T * b
-  const n = 8;
-  const ATA = Array(n).fill(0).map(() => Array(n).fill(0));
-  const ATb = Array(n).fill(0);
-
-  // Compute A^T * A and A^T * b
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      for (let k = 0; k < 8; k++) {
-        ATA[i][j] += A[k][i] * A[k][j];
-      }
-    }
-    for (let k = 0; k < 8; k++) {
-      ATb[i] += A[k][i] * b[k];
-    }
-  }
-
-  // Solve using Gaussian elimination with partial pivoting
-  return gaussianElimination(ATA, ATb);
-}
-
-/**
- * Gaussian elimination for NxN system
- */
-function gaussianElimination(A, b) {
-  const n = A.length;
-  const M = A.map((row, i) => [...row, b[i]]);
-
-  // Forward elimination
-  for (let col = 0; col < n; col++) {
-    let maxRow = col;
-    for (let row = col + 1; row < n; row++) {
-      if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) {
-        maxRow = row;
-      }
-    }
-    [M[col], M[maxRow]] = [M[maxRow], M[col]];
-
-    if (Math.abs(M[col][col]) < 1e-10) continue;
-
-    for (let row = col + 1; row < n; row++) {
-      const factor = M[row][col] / M[col][col];
-      for (let j = col; j <= n; j++) {
-        M[row][j] -= factor * M[col][j];
-      }
-    }
-  }
-
-  // Back substitution
-  const x = Array(n).fill(0);
-  for (let i = n - 1; i >= 0; i--) {
-    x[i] = M[i][n];
-    for (let j = i + 1; j < n; j++) {
-      x[i] -= M[i][j] * x[j];
-    }
-    if (Math.abs(M[i][i]) > 1e-10) {
-      x[i] /= M[i][i];
-    }
-  }
-
-  return x;
-}
-
-/**
- * Apply homography to a point
- */
-function applyHomography(H, point) {
-  const x = point.x;
-  const y = point.y;
-
-  const w = H[2][0] * x + H[2][1] * y + H[2][2];
-  const px = (H[0][0] * x + H[0][1] * y + H[0][2]) / w;
-  const py = (H[1][0] * x + H[1][1] * y + H[1][2]) / w;
-
-  return { x: px, y: py };
-}
-
-/**
- * Invert a 3x3 matrix
- */
-function invertMatrix3x3(M) {
-  const det =
-    M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) -
-    M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) +
-    M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
-
-  if (Math.abs(det) < 1e-10) return null;
-
-  const invDet = 1 / det;
-
-  return [
-    [
-      (M[1][1] * M[2][2] - M[1][2] * M[2][1]) * invDet,
-      (M[0][2] * M[2][1] - M[0][1] * M[2][2]) * invDet,
-      (M[0][1] * M[1][2] - M[0][2] * M[1][1]) * invDet
-    ],
-    [
-      (M[1][2] * M[2][0] - M[1][0] * M[2][2]) * invDet,
-      (M[0][0] * M[2][2] - M[0][2] * M[2][0]) * invDet,
-      (M[0][2] * M[1][0] - M[0][0] * M[1][2]) * invDet
-    ],
-    [
-      (M[1][0] * M[2][1] - M[1][1] * M[2][0]) * invDet,
-      (M[0][1] * M[2][0] - M[0][0] * M[2][1]) * invDet,
-      (M[0][0] * M[1][1] - M[0][1] * M[1][0]) * invDet
-    ]
-  ];
-}
-
-/**
- * Calculate perspective correction using 4 lines (2 vanishing points)
+ * Calculate perspective correction using 4 guide lines
  *
- * @param {object} lines - Object with x1, x2, y1, y2 lines
+ * @param {object} lines - Object with x1, x2 (horizontal), y1, y2 (vertical) lines
  * @param {HTMLImageElement} img - Source image
  * @param {number} canvasWidth - Canvas width where lines were drawn
  * @param {number} canvasHeight - Canvas height where lines were drawn
  * @returns {Promise<{canvas: HTMLCanvasElement, width: number, height: number}>}
  */
 export async function perspectiveTransform(lines, img, canvasWidth, canvasHeight) {
-  // Calculate vanishing points
-  const vpX = lineIntersection(lines.x1, lines.x2);
-  const vpY = lineIntersection(lines.y1, lines.y2);
-
-  // Get average angles for X and Y directions
-  const avgXAngle = averageAngle(lines.x1, lines.x2);
-  const avgYAngle = averageAngle(lines.y1, lines.y2);
-
-  // Calculate how much to rotate to make X horizontal
-  const rotationAngle = -avgXAngle;
-
-  // Calculate scale ratio between displayed canvas and actual image
+  // Scale line coordinates to image space
   const scaleX = img.width / canvasWidth;
   const scaleY = img.height / canvasHeight;
 
-  // Scale line coordinates to image space
   const scaleLine = (line) => ({
     start: { x: line.start.x * scaleX, y: line.start.y * scaleY },
     end: { x: line.end.x * scaleX, y: line.end.y * scaleY }
   });
 
-  const x1Scaled = scaleLine(lines.x1);
-  const x2Scaled = scaleLine(lines.x2);
-  const y1Scaled = scaleLine(lines.y1);
-  const y2Scaled = scaleLine(lines.y2);
+  const x1 = scaleLine(lines.x1);
+  const x2 = scaleLine(lines.x2);
+  const y1 = scaleLine(lines.y1);
+  const y2 = scaleLine(lines.y2);
 
-  // Find the bounding quad from the 4 lines
-  // We'll find the intersection of each X line with each Y line
+  // Get angles of the guide lines
+  const xAngle1 = lineAngle(x1);
+  const xAngle2 = normalizeAngleNear(lineAngle(x2), xAngle1);
+  const avgXAngle = (xAngle1 + xAngle2) / 2;
+
+  // For Y lines, normalize around -PI/2 (pointing up)
+  const yAngle1 = normalizeAngleNear(lineAngle(y1), -Math.PI / 2);
+  const yAngle2 = normalizeAngleNear(lineAngle(y2), yAngle1);
+  const avgYAngle = (yAngle1 + yAngle2) / 2;
+
+  console.log('X line angles:', xAngle1 * 180 / Math.PI, xAngle2 * 180 / Math.PI, '→ avg:', avgXAngle * 180 / Math.PI);
+  console.log('Y line angles:', yAngle1 * 180 / Math.PI, yAngle2 * 180 / Math.PI, '→ avg:', avgYAngle * 180 / Math.PI);
+
+  // Compute vanishing points
+  const vpX = lineIntersection(x1, x2);
+  const vpY = lineIntersection(y1, y2);
+
+  console.log('Vanishing point X:', vpX);
+  console.log('Vanishing point Y:', vpY);
+
+  // Determine correction parameters
+  // Rotation: make X lines horizontal
+  const rotation = -avgXAngle;
+
+  // After rotation, Y lines will be at angle (avgYAngle + rotation)
+  // We want them at -PI/2 (vertical, pointing up)
+  const yAngleAfterRotation = avgYAngle + rotation;
+  const verticalDeviation = yAngleAfterRotation - (-Math.PI / 2);
+
+  console.log('Rotation:', rotation * 180 / Math.PI, 'degrees');
+  console.log('Y angle after rotation:', yAngleAfterRotation * 180 / Math.PI, 'degrees');
+  console.log('Vertical deviation:', verticalDeviation * 180 / Math.PI, 'degrees');
+
+  // For perspective correction (keystone), we use the vanishing point
+  // The further the VP from the image center, the less perspective distortion
+  let keystoneStrength = 0;
+
+  if (vpY && Math.abs(verticalDeviation) > 0.01) {
+    // Use vanishing point to determine keystone correction
+    const imgCenterY = img.height / 2;
+    const vpDistance = vpY.y - imgCenterY;
+
+    // Negative vpDistance means VP is above image (lines converge upward)
+    // Positive means VP is below (lines converge downward)
+    if (Math.abs(vpDistance) > 10) {
+      // The keystone factor determines how much horizontal shift per vertical position
+      // This is derived from the vanishing point position
+      keystoneStrength = -verticalDeviation * 0.7; // Empirical factor
+    }
+  }
+
+  console.log('Keystone strength:', keystoneStrength);
+
+  // Build the transformation matrix
+  // We'll compute the transformed corners to determine output size
   const corners = [
-    lineIntersection(x1Scaled, y1Scaled),
-    lineIntersection(x1Scaled, y2Scaled),
-    lineIntersection(x2Scaled, y2Scaled),
-    lineIntersection(x2Scaled, y1Scaled)
+    { x: 0, y: 0 },
+    { x: img.width, y: 0 },
+    { x: img.width, y: img.height },
+    { x: 0, y: img.height }
   ];
 
-  // Check if we got valid intersections
-  const validCorners = corners.every(c => c !== null);
+  const centerX = img.width / 2;
+  const centerY = img.height / 2;
 
-  if (validCorners) {
-    // Use homography to correct the perspective
-    return applyHomographyCorrection(img, corners);
-  } else {
-    // Fallback to rotation-only correction
-    return applyRotationCorrection(img, rotationAngle, avgXAngle, avgYAngle);
-  }
-}
+  // Transform function
+  const transform = (p) => {
+    // Translate to center
+    let x = p.x - centerX;
+    let y = p.y - centerY;
 
-/**
- * Apply homography-based perspective correction
- */
-async function applyHomographyCorrection(img, corners) {
-  // Find bounding box of corners
-  const xs = corners.map(c => c.x);
-  const ys = corners.map(c => c.y);
+    // Apply rotation
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const rx = x * cos - y * sin;
+    const ry = x * sin + y * cos;
+
+    // Apply keystone (horizontal shear based on vertical position)
+    const kx = rx + ry * keystoneStrength;
+    const ky = ry;
+
+    return { x: kx, y: ky };
+  };
+
+  // Transform corners
+  const transformedCorners = corners.map(transform);
+
+  // Find bounds
+  const xs = transformedCorners.map(c => c.x);
+  const ys = transformedCorners.map(c => c.y);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
 
-  // Target width and height (from quad dimensions)
-  const width = maxX - minX;
-  const height = maxY - minY;
+  const outWidth = Math.ceil(maxX - minX);
+  const outHeight = Math.ceil(maxY - minY);
 
-  // Target rectangle corners
-  const dstCorners = [
-    { x: 0, y: 0 },
-    { x: width, y: 0 },
-    { x: width, y: height },
-    { x: 0, y: height }
-  ];
-
-  // Calculate homography from corners to rectangle
-  const H = calculateHomography(corners, dstCorners);
-  const Hinv = invertMatrix3x3(H);
-
-  if (!Hinv) {
-    // Fallback if inversion fails
-    return fallbackCorrection(img);
+  // Limit size
+  const maxDim = 4096;
+  let outputScale = 1;
+  if (outWidth > maxDim || outHeight > maxDim) {
+    outputScale = maxDim / Math.max(outWidth, outHeight);
   }
+
+  const finalWidth = Math.ceil(outWidth * outputScale);
+  const finalHeight = Math.ceil(outHeight * outputScale);
 
   // Create output canvas
   const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(width);
-  canvas.height = Math.ceil(height);
+  canvas.width = finalWidth;
+  canvas.height = finalHeight;
   const ctx = canvas.getContext('2d');
 
-  // Apply inverse homography to sample from source image
-  const imageData = ctx.createImageData(canvas.width, canvas.height);
+  // Get source image data
   const srcCanvas = document.createElement('canvas');
   srcCanvas.width = img.width;
   srcCanvas.height = img.height;
@@ -349,36 +199,46 @@ async function applyHomographyCorrection(img, corners) {
   srcCtx.drawImage(img, 0, 0);
   const srcData = srcCtx.getImageData(0, 0, img.width, img.height);
 
-  for (let y = 0; y < canvas.height; y++) {
-    for (let x = 0; x < canvas.width; x++) {
-      // Apply inverse homography to find source pixel
-      const srcPoint = applyHomography(Hinv, { x, y });
+  // Create output image data
+  const imageData = ctx.createImageData(finalWidth, finalHeight);
 
-      // Bilinear interpolation
-      const sx = Math.floor(srcPoint.x);
-      const sy = Math.floor(srcPoint.y);
+  // Inverse transform function (from output to source)
+  const invCos = Math.cos(-rotation);
+  const invSin = Math.sin(-rotation);
 
+  for (let outY = 0; outY < finalHeight; outY++) {
+    for (let outX = 0; outX < finalWidth; outX++) {
+      // Convert to centered coordinates
+      const tx = (outX / outputScale) + minX;
+      const ty = (outY / outputScale) + minY;
+
+      // Inverse keystone
+      const ikx = tx - ty * keystoneStrength;
+      const iky = ty;
+
+      // Inverse rotation
+      const sx = ikx * invCos - iky * invSin + centerX;
+      const sy = ikx * invSin + iky * invCos + centerY;
+
+      // Sample from source with bilinear interpolation
       if (sx >= 0 && sx < img.width - 1 && sy >= 0 && sy < img.height - 1) {
-        const fx = srcPoint.x - sx;
-        const fy = srcPoint.y - sy;
+        const sx0 = Math.floor(sx);
+        const sy0 = Math.floor(sy);
+        const fx = sx - sx0;
+        const fy = sy - sy0;
 
-        const idx = (y * canvas.width + x) * 4;
+        const idx = (outY * finalWidth + outX) * 4;
 
         for (let c = 0; c < 4; c++) {
-          const i00 = (sy * img.width + sx) * 4 + c;
-          const i10 = (sy * img.width + sx + 1) * 4 + c;
-          const i01 = ((sy + 1) * img.width + sx) * 4 + c;
-          const i11 = ((sy + 1) * img.width + sx + 1) * 4 + c;
+          const i00 = (sy0 * img.width + sx0) * 4 + c;
+          const i10 = (sy0 * img.width + sx0 + 1) * 4 + c;
+          const i01 = ((sy0 + 1) * img.width + sx0) * 4 + c;
+          const i11 = ((sy0 + 1) * img.width + sx0 + 1) * 4 + c;
 
-          const v00 = srcData.data[i00];
-          const v10 = srcData.data[i10];
-          const v01 = srcData.data[i01];
-          const v11 = srcData.data[i11];
-
-          const v = v00 * (1 - fx) * (1 - fy) +
-                   v10 * fx * (1 - fy) +
-                   v01 * (1 - fx) * fy +
-                   v11 * fx * fy;
+          const v = srcData.data[i00] * (1 - fx) * (1 - fy) +
+                   srcData.data[i10] * fx * (1 - fy) +
+                   srcData.data[i01] * (1 - fx) * fy +
+                   srcData.data[i11] * fx * fy;
 
           imageData.data[idx + c] = Math.round(v);
         }
@@ -390,60 +250,8 @@ async function applyHomographyCorrection(img, corners) {
 
   return {
     canvas,
-    width: canvas.width,
-    height: canvas.height
-  };
-}
-
-/**
- * Apply rotation-based correction (fallback)
- */
-async function applyRotationCorrection(img, rotationAngle, xAngle, yAngle) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-
-  // Calculate the angle between X and Y lines (should be 90 degrees)
-  const angleBetween = Math.abs(yAngle - xAngle);
-  const shearFactor = Math.tan(angleBetween - Math.PI / 2) * 0.3;
-
-  // Calculate output size after rotation
-  const cos = Math.abs(Math.cos(rotationAngle));
-  const sin = Math.abs(Math.sin(rotationAngle));
-  const newWidth = img.width * cos + img.height * sin;
-  const newHeight = img.width * sin + img.height * cos;
-
-  canvas.width = Math.ceil(newWidth);
-  canvas.height = Math.ceil(newHeight);
-
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(rotationAngle);
-
-  // Apply slight shear to correct perspective
-  ctx.transform(1, 0, shearFactor, 1, 0, 0);
-
-  ctx.drawImage(img, -img.width / 2, -img.height / 2);
-
-  return {
-    canvas,
-    width: canvas.width,
-    height: canvas.height
-  };
-}
-
-/**
- * Simple fallback - just return the image as-is
- */
-function fallbackCorrection(img) {
-  const canvas = document.createElement('canvas');
-  canvas.width = img.width;
-  canvas.height = img.height;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0);
-
-  return {
-    canvas,
-    width: canvas.width,
-    height: canvas.height
+    width: finalWidth,
+    height: finalHeight
   };
 }
 
