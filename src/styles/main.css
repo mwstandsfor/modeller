@@ -601,7 +601,8 @@ body {
 }
 
 .shortcut-key {
-  min-width: 64px;
+  width: 82px;
+  min-width: 82px;
   height: 24px;
   padding: 0 8px;
   background: #0E0E0E;
@@ -612,22 +613,21 @@ body {
   font-size: 13px;
   line-height: 100%;
   text-align: center;
-  text-transform: uppercase;
+  text-transform: capitalize;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .shortcut-key:hover {
-  border-color: #00CED1;
+  border-color: #949DFF;
   color: #FFFFFF;
 }
 
 .shortcut-key.listening {
-  background: #00CED1;
-  border-color: #00CED1;
-  color: #000000;
-  animation: pulse 1s infinite;
+  background: #0E0E0E;
+  border-color: #949DFF;
+  color: #949DFF;
 }
 
 @keyframes pulse {

@@ -271,7 +271,7 @@ export class ShortcutsManager {
     this.listeningButton = buttonEl;
 
     buttonEl.classList.add('listening');
-    buttonEl.textContent = 'Press key...';
+    buttonEl.textContent = 'Press Key...';
   }
 
   /**
