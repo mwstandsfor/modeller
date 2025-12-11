@@ -1,19 +1,26 @@
 import { Modes } from './modes.js';
 
 /**
- * Default keyboard shortcuts
+ * Default keyboard shortcuts organized by category
  */
 const DEFAULT_SHORTCUTS = {
-  import: { key: 'i', description: 'Import image' },
-  skip: { key: 's', description: 'Skip / Cancel / Select' },
-  perspective: { key: 'p', description: 'Perspective tool' },
-  cut: { key: 'c', description: 'Cut tool' },
-  extrude: { key: 'e', description: 'Extrude tool' },
-  inset: { key: 'f', description: 'Inset tool' },
-  grid: { key: 'g', description: 'Toggle grid' },
-  undo: { key: 'z', description: 'Undo' },
-  redo: { key: 'y', description: 'Redo' },
-  confirm: { key: ' ', description: 'Confirm action' },
+  // Action category
+  import: { key: 'i', description: 'Import image', category: 'action' },
+  confirm: { key: ' ', description: 'Confirm Action', category: 'action' },
+  skip: { key: 's', description: 'Skip Action', category: 'action' },
+  undo: { key: 'z', description: 'Undo', category: 'action' },
+  redo: { key: 'x', description: 'Redo', category: 'action' },
+
+  // Tools category
+  perspective: { key: 'p', description: 'Perspective Align', category: 'tools' },
+  cut: { key: 'c', description: 'Cut', category: 'tools' },
+  extrude: { key: 'e', description: 'Extrude', category: 'tools' },
+  inset: { key: 'f', description: 'Inset', category: 'tools' },
+
+  // Scene category
+  cameraReset: { key: 'j', description: 'Camera Reset', category: 'scene' },
+  grid: { key: 'k', description: 'Toggle Grid', category: 'scene' },
+  snapGrid: { key: 'l', description: 'Snap Grid', category: 'scene' },
 };
 
 /**
@@ -81,57 +88,83 @@ export class ShortcutsManager {
     this.overlay.style.display = 'none';
 
     this.overlay.innerHTML = `
-      <div class="shortcuts-panel two-column">
-        <div class="shortcuts-header">
-          <h3>Shortcuts</h3>
-          <button class="shortcuts-close" title="Close">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div class="shortcuts-columns">
-          <div class="shortcuts-column">
-            <div class="shortcuts-column-header">Keyboard</div>
-            <div class="shortcuts-list"></div>
-            <div class="shortcuts-note">
-              <span class="shortcut-desc">Load recent image</span>
-              <span class="shortcut-fixed">1-9</span>
-            </div>
-          </div>
-          <div class="shortcuts-column">
-            <div class="shortcuts-column-header">Mouse</div>
-            <div class="shortcuts-mouse">
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Rotate view</span>
-                <span class="shortcut-fixed">Left drag</span>
+      <div class="shortcuts-modal">
+        <div class="shortcuts-content">
+          <!-- Keyboard Section -->
+          <div class="shortcuts-section">
+            <div class="shortcuts-section-title">Keyboard</div>
+            <div class="shortcuts-keyboard-grid">
+              <!-- Action Column -->
+              <div class="shortcuts-column">
+                <div class="shortcuts-column-header">Action</div>
+                <div class="shortcuts-list" data-category="action"></div>
               </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Pan view</span>
-                <span class="shortcut-fixed">Middle drag</span>
+              <!-- Tools Column -->
+              <div class="shortcuts-column">
+                <div class="shortcuts-column-header">Tools</div>
+                <div class="shortcuts-list" data-category="tools"></div>
               </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Pan view</span>
-                <span class="shortcut-fixed">Right drag</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Zoom</span>
-                <span class="shortcut-fixed">Scroll</span>
-              </div>
-            </div>
-            <div class="shortcuts-column-header">Touch</div>
-            <div class="shortcuts-mouse">
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Rotate view</span>
-                <span class="shortcut-fixed">1 finger</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-desc">Pan & Zoom</span>
-                <span class="shortcut-fixed">2 fingers</span>
+              <!-- Scene Column -->
+              <div class="shortcuts-column">
+                <div class="shortcuts-column-header">Scene</div>
+                <div class="shortcuts-list" data-category="scene"></div>
+                <div class="shortcut-row">
+                  <span class="shortcut-label">Load Recent Image</span>
+                  <span class="shortcut-value">1 - 9</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="shortcuts-footer">
-          <button class="shortcuts-reset">Reset to Defaults</button>
+
+          <!-- Divider -->
+          <div class="shortcuts-divider"></div>
+
+          <!-- Mouse & Touch Section -->
+          <div class="shortcuts-section">
+            <div class="shortcuts-input-grid">
+              <!-- Mouse Column -->
+              <div class="shortcuts-column">
+                <div class="shortcuts-section-title">Mouse</div>
+                <div class="shortcuts-input-list">
+                  <div class="shortcut-row">
+                    <span class="shortcut-label">Rotate</span>
+                    <span class="shortcut-value">Left Drag</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-label">Pan</span>
+                    <span class="shortcut-value">Middle Drag</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-label">Zoom</span>
+                    <span class="shortcut-value">Scroll Wheel</span>
+                  </div>
+                </div>
+              </div>
+              <!-- Touch Column -->
+              <div class="shortcuts-column">
+                <div class="shortcuts-section-title">Touch</div>
+                <div class="shortcuts-input-list">
+                  <div class="shortcut-row">
+                    <span class="shortcut-label">Rotate</span>
+                    <span class="shortcut-value">1 Finger</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-label">Pan & Zoom</span>
+                    <span class="shortcut-value">2 Fingers</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="shortcuts-divider"></div>
+
+          <!-- Footer -->
+          <div class="shortcuts-footer">
+            <button class="shortcuts-btn shortcuts-reset">Restore Defaults</button>
+            <button class="shortcuts-btn shortcuts-close">Close</button>
+          </div>
         </div>
       </div>
     `;
@@ -162,25 +195,34 @@ export class ShortcutsManager {
    * Render the shortcuts list
    */
   renderShortcutsList() {
-    const list = this.overlay.querySelector('.shortcuts-list');
-    list.innerHTML = '';
+    // Get all category lists
+    const categories = ['action', 'tools', 'scene'];
 
-    for (const [action, config] of Object.entries(this.shortcuts)) {
-      const item = document.createElement('div');
-      item.className = 'shortcut-item';
+    categories.forEach(category => {
+      const list = this.overlay.querySelector(`.shortcuts-list[data-category="${category}"]`);
+      if (!list) return;
 
-      const keyDisplay = this.formatKey(config);
+      list.innerHTML = '';
 
-      item.innerHTML = `
-        <span class="shortcut-desc">${config.description}</span>
-        <button class="shortcut-key" data-action="${action}">${keyDisplay}</button>
-      `;
+      for (const [action, config] of Object.entries(this.shortcuts)) {
+        if (config.category !== category) continue;
 
-      list.appendChild(item);
-    }
+        const item = document.createElement('div');
+        item.className = 'shortcut-row';
+
+        const keyDisplay = this.formatKey(config);
+
+        item.innerHTML = `
+          <span class="shortcut-label">${config.description}</span>
+          <button class="shortcut-key" data-action="${action}">${keyDisplay}</button>
+        `;
+
+        list.appendChild(item);
+      }
+    });
 
     // Add click handlers for rebinding
-    list.querySelectorAll('.shortcut-key').forEach(btn => {
+    this.overlay.querySelectorAll('.shortcut-key').forEach(btn => {
       btn.addEventListener('click', (e) => {
         this.startListening(e.target.dataset.action, e.target);
       });
@@ -355,6 +397,18 @@ export class ShortcutsManager {
 
       case 'grid':
         app.toggleGridVisibility();
+        break;
+
+      case 'cameraReset':
+        if (app.sceneManager) {
+          app.sceneManager.resetCamera();
+        }
+        break;
+
+      case 'snapGrid':
+        if (app.toggleSnapGrid) {
+          app.toggleSnapGrid();
+        }
         break;
 
       case 'undo':
