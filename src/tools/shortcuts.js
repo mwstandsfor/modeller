@@ -50,7 +50,17 @@ export class ShortcutsManager {
     try {
       const stored = localStorage.getItem('imagemodel_shortcuts');
       if (stored) {
-        return { ...DEFAULT_SHORTCUTS, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        // Deep merge: keep category from defaults, allow key overrides from stored
+        const merged = {};
+        for (const [action, defaultConfig] of Object.entries(DEFAULT_SHORTCUTS)) {
+          merged[action] = {
+            ...defaultConfig,  // Start with defaults (includes category)
+            ...(parsed[action] || {}),  // Override with stored values
+            category: defaultConfig.category  // Always keep category from defaults
+          };
+        }
+        return merged;
       }
     } catch (e) {
       console.warn('Could not load shortcuts');
