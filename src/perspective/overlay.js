@@ -22,12 +22,11 @@ export class PerspectiveOverlay {
     // Hit detection radius (scales with canvas)
     this.HIT_RADIUS = 20;
 
-    // Style
     this.colors = {
-      line: '#949DFF',       // Accent color for lines
-      point: '#EA1941',      // Red for normal points
-      pointHover: '#facc15', // Yellow for hover
-      pointDrag: '#22c55e',  // Green for dragging
+      line: '#5f6179ff',       // Accent color for lines
+      point: '#ccd0f5ff',      // normal points
+      pointHover: '#a4abf1ff', 
+      pointDrag: '#949DFF',  
       guide: '#888888'
     };
 
