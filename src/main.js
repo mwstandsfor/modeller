@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SceneManager } from './scene.js';
 import { ModeManager, Modes } from './tools/modes.js';
 import { Toolbar } from './tools/toolbar.js';
+import { ShortcutsManager } from './tools/shortcuts.js';
 import { ImagePlane } from './geometry/plane.js';
 import { EditableMesh } from './geometry/face.js';
 import { HistoryManager } from './history/undo.js';
@@ -32,6 +33,12 @@ class App {
 
     // Initialize UI
     this.toolbar = new Toolbar(this);
+    this.shortcuts = new ShortcutsManager(this);
+
+    // Setup shortcuts button
+    document.getElementById('btn-shortcuts').addEventListener('click', () => {
+      this.shortcuts.toggle();
+    });
 
     // Initialize tools
     this.perspectiveOverlay = new PerspectiveOverlay(this.overlayCanvas, this.scene);
@@ -71,9 +78,11 @@ class App {
       this.history.pushState(this.getSerializableState(), 'Cut faces');
     };
     this.cutOverlay.onReady = () => {
-      this.showApproveButton(() => {
-        this.cutOverlay.executePendingCut();
-      }, 'Cut');
+      this.showApproveButton(
+        () => this.cutOverlay.executePendingCut(),
+        'Cut',
+        () => this.cutOverlay.cancelPendingCut()
+      );
     };
 
     this.selectTool = new SelectTool(this.scene);
@@ -82,17 +91,21 @@ class App {
     this.extrudeTool = new ExtrudeTool(this.scene);
     this.extrudeTool.onExtrudeComplete = (face, distance) => this.onExtrudeComplete(face, distance);
     this.extrudeTool.onReady = () => {
-      this.showApproveButton(() => {
-        this.extrudeTool.executePendingExtrusion();
-      }, 'Extrude');
+      this.showApproveButton(
+        () => this.extrudeTool.executePendingExtrusion(),
+        'Extrude',
+        () => this.extrudeTool.cancelPendingExtrusion()
+      );
     };
 
     this.insetTool = new InsetTool(this.scene);
     this.insetTool.onInsetComplete = (face, thickness) => this.onInsetComplete(face, thickness);
     this.insetTool.onReady = () => {
-      this.showApproveButton(() => {
-        this.insetTool.executePendingInset();
-      }, 'Inset');
+      this.showApproveButton(
+        () => this.insetTool.executePendingInset(),
+        'Inset',
+        () => this.insetTool.cancelPendingInset()
+      );
     };
 
     // State
@@ -155,8 +168,8 @@ class App {
     // Setup approve button
     this.approveBtn.addEventListener('click', () => this.executeApprove());
 
-    // Setup skip button (for perspective step)
-    this.skipBtn.addEventListener('click', () => this.skipPerspective());
+    // Setup skip button (for perspective step or canceling pending actions)
+    this.skipBtn.addEventListener('click', () => this.executeCancel());
 
     // Setup camera reset button
     const cameraResetBtn = document.getElementById('btn-camera-reset');
@@ -311,11 +324,20 @@ class App {
 
   /**
    * Show approve button with action (highlight enter button)
+   * @param {Function} action - Action to execute on approval
+   * @param {string} text - Button text (unused, kept for compatibility)
+   * @param {Function} cancelAction - Optional action to execute on cancel/skip
    */
-  showApproveButton(action, text = 'Apply') {
+  showApproveButton(action, text = 'Apply', cancelAction = null) {
     this.pendingAction = action;
+    this.pendingCancelAction = cancelAction;
     this.approveBtn.style.display = 'flex';
     this.approveBtn.classList.add('ready');
+
+    // Show skip button if there's a cancel action
+    if (cancelAction) {
+      this.skipBtn.style.display = 'flex';
+    }
   }
 
   /**
@@ -323,8 +345,10 @@ class App {
    */
   hideApproveButton() {
     this.pendingAction = null;
+    this.pendingCancelAction = null;
     this.approveBtn.style.display = 'none';
     this.approveBtn.classList.remove('ready');
+    this.skipBtn.style.display = 'none';
   }
 
   /**
@@ -360,6 +384,19 @@ class App {
     if (this.pendingAction) {
       this.pendingAction();
       this.hideApproveButton();
+    }
+  }
+
+  /**
+   * Execute pending cancel action (skip/reset)
+   */
+  executeCancel() {
+    if (this.pendingCancelAction) {
+      this.pendingCancelAction();
+      this.hideApproveButton();
+    } else if (this.modeManager.isMode(Modes.PERSPECTIVE)) {
+      // Fallback for perspective mode
+      this.skipPerspective();
     }
   }
 

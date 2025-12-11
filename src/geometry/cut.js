@@ -360,8 +360,9 @@ export class CutOverlay {
 
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
-    this.canvas.addEventListener('pointerup', this.handlePointerUp);
     this.canvas.addEventListener('click', this.handlePointerClick);
+    // Use window for pointerup to catch it even when pointer events are disabled on overlay
+    window.addEventListener('pointerup', this.handlePointerUp);
 
     this.reset();
     this.draw();
@@ -374,10 +375,12 @@ export class CutOverlay {
 
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
     this.canvas.removeEventListener('pointermove', this.handlePointerMove);
-    this.canvas.removeEventListener('pointerup', this.handlePointerUp);
     this.canvas.removeEventListener('click', this.handlePointerClick);
+    window.removeEventListener('pointerup', this.handlePointerUp);
 
-    // Ensure controls are re-enabled
+    // Ensure controls are re-enabled and pointer events restored
+    this.canvas.style.pointerEvents = 'auto';
+    this.isRotating = false;
     this.sceneManager.setControlsEnabled(true);
   }
 
@@ -441,6 +444,12 @@ export class CutOverlay {
     const result = this.findEdgeAtPosition(e.clientX, e.clientY);
 
     if (!result) {
+      // Clicked on empty space - reset the cut state if we had a start point
+      if (this.startPoint) {
+        this.reset();
+        this.draw();
+      }
+
       // Allow 3D rotation when clicking on empty space
       // Disable pointer events on overlay and dispatch event to 3D canvas
       this.canvas.style.pointerEvents = 'none';
@@ -547,6 +556,7 @@ export class CutOverlay {
     if (this.isRotating) {
       this.isRotating = false;
       this.canvas.style.pointerEvents = 'auto';
+      this.sceneManager.setControlsEnabled(false);
     }
   }
 
@@ -644,6 +654,44 @@ export class CutOverlay {
         ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 4, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    // Draw pending cut line (waiting for approval)
+    if (this.pendingCut) {
+      const startScreen = this.worldToScreen(this.pendingCut.startPoint);
+      const endScreen = this.worldToScreen(this.pendingCut.endPoint);
+
+      // Draw white cut line
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.moveTo(startScreen.x, startScreen.y);
+      ctx.lineTo(endScreen.x, endScreen.y);
+      ctx.stroke();
+
+      // Draw start point marker
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(startScreen.x, startScreen.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(startScreen.x, startScreen.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw end point marker
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(endScreen.x, endScreen.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(endScreen.x, endScreen.y, 4, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 

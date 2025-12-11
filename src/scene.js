@@ -56,11 +56,12 @@ export class SceneManager {
     this.controls.maxDistance = 50;
 
     // Mouse button configuration:
-    // LEFT = rotate, MIDDLE = pan, RIGHT = zoom
+    // LEFT = rotate, MIDDLE = pan, RIGHT = pan
+    // Scroll wheel = zoom (default OrbitControls behavior)
     this.controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.PAN,
-      RIGHT: THREE.MOUSE.DOLLY
+      RIGHT: THREE.MOUSE.PAN
     };
 
     // Touch settings for mobile
