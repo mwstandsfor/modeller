@@ -1,0 +1,1690 @@
+/* UI Shortcuts */
+
+position: relative;
+width: 1194px;
+height: 834px;
+
+background: #1D1D20;
+
+
+/* BG overlay */
+
+position: absolute;
+width: 1216px;
+height: 846px;
+left: 0px;
+top: 0px;
+
+background: rgba(0, 0, 0, 0.5);
+
+
+/* Input Modal */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 48px 64px;
+gap: 24px;
+
+position: absolute;
+width: 1054px;
+height: 665px;
+left: calc(50% - 1054px/2 - 0.5px);
+top: calc(50% - 665px/2 + 0.5px);
+
+background: #27272B;
+
+
+/* Frame 56 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 33px;
+
+width: 926px;
+height: 569px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Keybarod Actions */
+
+width: 926px;
+height: 255px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 57 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 64px;
+
+position: absolute;
+width: 926px;
+height: 212px;
+left: 0px;
+top: 43px;
+
+
+
+/* Actions */
+
+width: 269px;
+height: 212px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Action */
+
+position: absolute;
+width: 52px;
+height: 19px;
+left: 0px;
+top: 0px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #DEDEDE;
+
+
+
+/* Import image Confirm Action Skip Action Undo Redo */
+
+position: absolute;
+width: 179px;
+height: 174px;
+left: 1px;
+top: 38px;
+
+/* Info */
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 100%;
+/* or 16px */
+
+color: rgba(217, 217, 217, 0.8);
+
+
+
+/* Inputs */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 12px;
+
+position: absolute;
+width: 64px;
+height: 168px;
+left: 205px;
+top: 34px;
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Tools */
+
+width: 255px;
+height: 169px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Group 51 */
+
+position: absolute;
+width: 179px;
+height: 163px;
+left: 333px;
+top: 0px;
+
+
+
+/* Tools */
+
+position: absolute;
+width: 43px;
+height: 19px;
+left: 333px;
+top: 0px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #DEDEDE;
+
+
+
+/* Perspective Align Cut Extrude Inset */
+
+position: absolute;
+width: 179px;
+height: 125px;
+left: 333px;
+top: 38px;
+
+/* Info */
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 100%;
+/* or 16px */
+
+color: rgba(217, 217, 217, 0.8);
+
+
+
+/* Inputs */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 12px;
+
+position: absolute;
+width: 64px;
+height: 135px;
+left: 524px;
+top: 34px;
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 27px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 2px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 2px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2 + 0.5px);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2 + 0.5px);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Group 57 */
+
+width: 274px;
+height: 207px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Group 56 */
+
+position: absolute;
+width: 268px;
+height: 163px;
+left: 652px;
+top: 0px;
+
+
+
+/* Scene */
+
+position: absolute;
+width: 49px;
+height: 19px;
+left: 652px;
+top: 0px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #DEDEDE;
+
+
+
+/* Camera Reset Toggle Grid Snap Grid */
+
+position: absolute;
+width: 179px;
+height: 125px;
+left: 652px;
+top: 38px;
+
+/* Info */
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 100%;
+/* or 16px */
+
+color: rgba(217, 217, 217, 0.8);
+
+
+
+/* Inputs */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 12px;
+
+position: absolute;
+width: 64px;
+height: 99px;
+left: 856px;
+top: 31px;
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 27px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 2px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 2px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2 + 0.5px);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2 + 0.5px);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Key Input */
+
+width: 64px;
+height: 24px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Group 49 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* Group 48 */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: 0px;
+top: 0px;
+
+
+
+/* BG */
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+background: #0E0E0E;
+border-radius: 4px;
+
+
+/* Stroke */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 64px;
+height: 24px;
+left: calc(50% - 64px/2);
+top: calc(50% - 24px/2);
+
+border: 1px solid #5B5B67;
+border-radius: 4px;
+
+
+/* i */
+
+position: absolute;
+width: 57.14px;
+height: 16px;
+left: 3.43px;
+top: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 100%;
+/* or 13px */
+text-align: center;
+text-transform: uppercase;
+
+color: rgba(255, 255, 255, 0.8);
+
+
+
+/* Scene */
+
+position: absolute;
+width: 274px;
+height: 31px;
+left: 652px;
+top: 176px;
+
+
+
+/* Group 51 */
+
+position: absolute;
+width: 274px;
+height: 31px;
+left: 652px;
+top: 176px;
+
+
+
+/* Group 50 */
+
+position: absolute;
+width: 274px;
+height: 31px;
+left: 652px;
+top: 176px;
+
+
+
+/* 1 - 9 */
+
+position: absolute;
+width: 59px;
+height: 29px;
+left: 867px;
+top: 178px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 100%;
+/* or 14px */
+
+color: rgba(255, 255, 255, 0.5);
+
+
+
+/* Load Recent Image */
+
+position: absolute;
+width: 169px;
+height: 16px;
+left: 652px;
+top: 176px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 100%;
+/* identical to box height, or 16px */
+
+color: rgba(217, 217, 217, 0.8);
+
+
+
+/* Keyboard */
+
+position: absolute;
+width: 75px;
+height: 19px;
+left: 0px;
+top: 0px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #DEDEDE;
+
+
+
+/* Div */
+
+width: 926px;
+height: 0px;
+
+border: 1px solid rgba(255, 255, 255, 0.3);
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+
+/* Mouse and TOuch */
+
+width: 752px;
+height: 140px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Group 54 */
+
+position: absolute;
+width: 261px;
+height: 140px;
+left: 0px;
+top: 321px;
+
+
+
+/* Mouse */
+
+position: absolute;
+width: 53px;
+height: 19px;
+left: 0px;
+top: 321px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #DEDEDE;
+
+
+
+/* Rotate Pan Zoom */
+
+position: absolute;
+width: 169px;
+height: 92px;
+left: 0px;
+top: 369px;
+
+/* Info */
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 100%;
+/* or 16px */
+
+color: rgba(217, 217, 217, 0.8);
+
+
+
+/* Left Drag Middle Drag Scroll Wheel */
+
+position: absolute;
+width: 92px;
+height: 86px;
+left: 169px;
+top: 370px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 100%;
+/* or 14px */
+
+color: rgba(255, 255, 255, 0.5);
+
+
+
+/* Group 55 */
+
+position: absolute;
+width: 261px;
+height: 115px;
+left: 491px;
+top: 321px;
+
+
+
+/* Touch */
+
+position: absolute;
+width: 49px;
+height: 19px;
+left: 491px;
+top: 321px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #DEDEDE;
+
+
+
+/* Rotate Pan & Zoom */
+
+position: absolute;
+width: 169px;
+height: 67px;
+left: 491px;
+top: 369px;
+
+/* Info */
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 100%;
+/* or 16px */
+
+color: rgba(217, 217, 217, 0.8);
+
+
+
+/* 1 Finger 2 Fingers */
+
+position: absolute;
+width: 92px;
+height: 54px;
+left: 660px;
+top: 370px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 100%;
+/* or 14px */
+
+color: rgba(255, 255, 255, 0.5);
+
+
+
+/* Div */
+
+width: 926px;
+height: 0px;
+
+border: 1px solid rgba(255, 255, 255, 0.3);
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+
+/* Status bar */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: flex-end;
+align-items: center;
+padding: 0px;
+gap: 32px;
+
+width: 926px;
+height: 42px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+
+/* Restore Defaults */
+
+width: 170.14px;
+height: 42px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Button */
+
+position: absolute;
+width: 170.14px;
+height: 42px;
+left: 561.83px;
+top: 0px;
+
+
+
+/* Group 25 */
+
+position: absolute;
+width: 170.14px;
+height: 42px;
+left: 0px;
+top: 0px;
+
+
+
+/* ButtonBg */
+
+position: absolute;
+height: 42px;
+left: 0%;
+right: 0%;
+top: 0px;
+
+background: #111111;
+border-radius: 4px;
+
+
+/* icon */
+
+position: absolute;
+width: 31.06px;
+height: 32.86px;
+left: 570.12px;
+top: 4.57px;
+
+
+
+/* Group 24 */
+
+position: absolute;
+width: 135px;
+height: 18px;
+left: 12.14px;
+top: 6px;
+
+
+
+/* Restore Defaults */
+
+position: absolute;
+width: 135px;
+height: 18px;
+left: calc(50% - 135px/2 + 64.11px);
+top: calc(50% - 18px/2 - 1.43px);
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+text-align: center;
+
+color: #868686;
+
+
+
+/* Close Button */
+
+width: 162.03px;
+height: 42px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Button */
+
+position: absolute;
+width: 162.03px;
+height: 42px;
+left: calc(50% - 162.03px/2 + 381.98px);
+top: calc(50% - 42px/2);
+
+
+
+/* Group 25 */
+
+position: absolute;
+width: 162.03px;
+height: 42px;
+left: 0px;
+top: 0px;
+
+
+
+/* ButtonBg */
+
+position: absolute;
+height: 42px;
+left: 0%;
+right: 0%;
+top: 0px;
+
+background: #111111;
+border-radius: 4px;
+
+
+/* Group 24 */
+
+position: absolute;
+width: 128.6px;
+height: 18px;
+left: 781.97px;
+top: 12px;
+
+
+
+/* Close */
+
+position: absolute;
+width: 128.6px;
+height: 18px;
+left: calc(50% - 128.6px/2 + 383.27px);
+top: calc(50% - 18px/2);
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+text-align: center;
+
+color: #868686;
+
