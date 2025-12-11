@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+
 /**
  * Cut tool - splits faces with edge-to-edge lines
  */
@@ -79,80 +80,80 @@ export function findClosestEdge(point, face, threshold = 0.1) {
  * @returns {{face1: Face, face2: Face}|null}
  */
 export function splitFace(face, startEdge, endEdge, nextFaceId) {
-  // Can't split if same edge
-  if (startEdge.edge.startIndex === endEdge.edge.startIndex) {
+  if (startEdge.edge.startIndex === endEdge.edge.startIndex) return null;
+
+  try {
+    const Face = face.constructor;
+    const vertices = face.vertices;
+    const uvs = face.uvs;
+    const n = vertices.length;
+
+    const startIdx = startEdge.edge.startIndex;
+    const endIdx = endEdge.edge.startIndex;
+
+    // Use copy/clone to ensure no reference sharing
+    const newVertex1 = new THREE.Vector3().copy(startEdge.point);
+    const newVertex2 = new THREE.Vector3().copy(endEdge.point);
+
+    // Safer UV interpolation
+    const startUV = uvs[startIdx] || new THREE.Vector2(0,0);
+    const startNextUV = uvs[(startIdx + 1) % n] || new THREE.Vector2(0,0);
+    const newUV1 = new THREE.Vector2().lerpVectors(startUV, startNextUV, startEdge.t);
+
+    const endUV = uvs[endIdx] || new THREE.Vector2(0,0);
+    const endNextUV = uvs[(endIdx + 1) % n] || new THREE.Vector2(0,0);
+    const newUV2 = new THREE.Vector2().lerpVectors(endUV, endNextUV, endEdge.t);
+
+    const face1Verts = [];
+    const face1UVs = [];
+    const face2Verts = [];
+    const face2UVs = [];
+
+    // --- Build Face 1 ---
+    face1Verts.push(newVertex1.clone());
+    face1UVs.push(newUV1.clone());
+
+    let i = (startEdge.edge.endIndex) % n;
+    let safety = 0;
+    while(true) {
+        face1Verts.push(vertices[i].clone());
+        face1UVs.push(uvs[i].clone());
+        if (i === endEdge.edge.startIndex) break;
+        i = (i + 1) % n;
+        if (safety++ > n * 2) throw new Error("Loop Error Face 1"); 
+    }
+
+    face1Verts.push(newVertex2.clone());
+    face1UVs.push(newUV2.clone());
+
+    // --- Build Face 2 ---
+    face2Verts.push(newVertex2.clone());
+    face2UVs.push(newUV2.clone());
+
+    i = (endEdge.edge.endIndex) % n;
+    safety = 0;
+    while(true) {
+        face2Verts.push(vertices[i].clone());
+        face2UVs.push(uvs[i].clone());
+        if (i === startEdge.edge.startIndex) break;
+        i = (i + 1) % n;
+        if (safety++ > n * 2) throw new Error("Loop Error Face 2");
+    }
+
+    face2Verts.push(newVertex1.clone());
+    face2UVs.push(newUV1.clone());
+
+    return { 
+        face1: new Face(face.id, face1Verts, face1UVs), 
+        face2: new Face(nextFaceId, face2Verts, face2UVs) 
+    };
+
+  } catch(e) {
+    console.error("Split Face Failed:", e);
     return null;
   }
-
-  const Face = face.constructor;
-  const vertices = face.vertices;
-  const uvs = face.uvs;
-  const n = vertices.length;
-
-  // Get edge indices
-  const startIdx = startEdge.edge.startIndex;
-  const endIdx = endEdge.edge.startIndex;
-
-  // New vertices at cut points
-  const newVertex1 = startEdge.point.clone();
-  const newVertex2 = endEdge.point.clone();
-
-  // Interpolate UVs at cut points
-  const newUV1 = new THREE.Vector2().lerpVectors(
-    uvs[startIdx],
-    uvs[(startIdx + 1) % n],
-    startEdge.t
-  );
-  const newUV2 = new THREE.Vector2().lerpVectors(
-    uvs[endIdx],
-    uvs[(endIdx + 1) % n],
-    endEdge.t
-  );
-
-  // Build two new faces by walking around the polygon
-  // Face 1: from newVertex1 along edges to newVertex2
-  // Face 2: from newVertex2 along remaining edges to newVertex1
-  // Both faces maintain the same winding order as the original
-
-  const face1Verts = [];
-  const face1UVs = [];
-  const face2Verts = [];
-  const face2UVs = [];
-
-  // Face 1: newVertex1 -> vertices from startEdge.endIndex to endEdge.startIndex -> newVertex2
-  face1Verts.push(newVertex1.clone());
-  face1UVs.push(newUV1.clone());
-
-  for (let i = (startEdge.edge.endIndex) % n; ; i = (i + 1) % n) {
-    face1Verts.push(vertices[i].clone());
-    face1UVs.push(uvs[i].clone());
-    if (i === endEdge.edge.startIndex) break;
-    if (face1Verts.length > n + 2) break; // Safety
-  }
-
-  face1Verts.push(newVertex2.clone());
-  face1UVs.push(newUV2.clone());
-
-  // Face 2: newVertex2 -> vertices from endEdge.endIndex to startEdge.startIndex -> newVertex1
-  face2Verts.push(newVertex2.clone());
-  face2UVs.push(newUV2.clone());
-
-  for (let i = (endEdge.edge.endIndex) % n; ; i = (i + 1) % n) {
-    face2Verts.push(vertices[i].clone());
-    face2UVs.push(uvs[i].clone());
-    if (i === startEdge.edge.startIndex) break;
-    if (face2Verts.length > n + 2) break; // Safety
-  }
-
-  face2Verts.push(newVertex1.clone());
-  face2UVs.push(newUV1.clone());
-
-  // Create new faces
-  const newFace1 = new Face(face.id, face1Verts, face1UVs);
-  const newFace2 = new Face(nextFaceId, face2Verts, face2UVs);
-
-  return { face1: newFace1, face2: newFace2 };
 }
+
 
 /**
  * Find the intersection of an infinite line with an edge segment
@@ -162,27 +163,67 @@ export function splitFace(face, startEdge, endEdge, nextFaceId) {
  * @param {THREE.Vector3} edgeEnd - End of edge segment
  * @returns {{point: THREE.Vector3, t: number}|null} - Intersection point and t parameter (0-1 along edge)
  */
-function lineEdgeIntersection(linePoint1, linePoint2, edgeStart, edgeEnd) {
-  // Work in 2D by projecting onto the dominant plane
-  // Use XY plane for now (assumes faces are roughly in XY plane)
-  const x1 = linePoint1.x, y1 = linePoint1.y;
-  const x2 = linePoint2.x, y2 = linePoint2.y;
-  const x3 = edgeStart.x, y3 = edgeStart.y;
-  const x4 = edgeEnd.x, y4 = edgeEnd.y;
 
-  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-  if (Math.abs(denom) < 0.0001) return null; // Parallel
 
-  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+/**
+ * Find the intersection of an infinite line with an edge segment in 3D
+ * Projects onto the face's dominant plane to ensure accuracy for walls/slopes
+ */
+function lineEdgeIntersection(linePoint1, linePoint2, edgeStart, edgeEnd, faceNormal) {
+  // 1. Determine the dominant axis of the face normal to project to 2D reliably
+  // This avoids "dividing by zero" issues when cutting vertical walls
+  let u = 'x', v = 'y';
+  const nx = Math.abs(faceNormal.x);
+  const ny = Math.abs(faceNormal.y);
+  const nz = Math.abs(faceNormal.z);
 
-  // u must be in [0, 1] for intersection to be on the edge segment
-  // t can be any value (infinite line)
-  if (u < 0.001 || u > 0.999) return null; // Not on edge (with small margin)
+  // If Z is normal (floor), use XY. If X is normal (wall), use YZ, etc.
+  if (nx > ny && nx > nz) { u = 'y'; v = 'z'; }
+  else if (ny > nx && ny > nz) { u = 'x'; v = 'z'; }
+  else { u = 'x'; v = 'y'; }
 
-  const point = new THREE.Vector3().lerpVectors(edgeStart, edgeEnd, u);
-  return { point, t: u };
+  // 2. Project points to 2D
+  const a1 = linePoint1[u], b1 = linePoint1[v];
+  const a2 = linePoint2[u], b2 = linePoint2[v];
+  const a3 = edgeStart[u], b3 = edgeStart[v];
+  const a4 = edgeEnd[u], b4 = edgeEnd[v];
+
+  // 3. Calculate 2D intersection
+  const denom = (a1 - a2) * (b3 - b4) - (b1 - b2) * (a3 - a4);
+  
+  // Parallel lines check
+  if (Math.abs(denom) < 0.00001) return null;
+
+  // We only need 'mu', the parameter along the edge segment (3->4)
+  // Intersection = P3 + mu * (P4 - P3)
+  const mu = -((a1 - a2) * (b1 - b3) - (b1 - b2) * (a1 - a3)) / denom;
+
+  // 4. Strict bound check with epsilon
+  // Must be strictly inside the edge (0 < mu < 1) to avoid duplicate vertex issues at corners
+  if (mu < 0.001 || mu > 0.999) return null;
+
+  const point = new THREE.Vector3().lerpVectors(edgeStart, edgeEnd, mu);
+  return { point, t: mu };
 }
+
+
+/**
+ * Helper to compute normal for arbitrary face polygon
+ */
+function getFaceNormal(face) {
+  // Assuming face.vertices has at least 3 vertices
+  const vA = face.vertices[0];
+  const vB = face.vertices[1];
+  const vC = face.vertices[2];
+  
+  const cb = new THREE.Vector3().subVectors(vC, vB);
+  const ab = new THREE.Vector3().subVectors(vA, vB);
+  
+  // Cross product gives normal
+  return cb.cross(ab).normalize();
+}
+
+
 
 /**
  * Find all faces that an infinite line passes through
@@ -198,12 +239,14 @@ export function findFacesOnLine(faces, linePoint1, linePoint2, excludeFace = nul
   for (const face of faces) {
     if (excludeFace && face.id === excludeFace.id) continue;
 
+    // Calculate normal so we know which plane this face lives on
+    const normal = getFaceNormal(face);
     const edges = face.getEdges();
     const intersections = [];
 
-    // Find all edge intersections with the infinite line
     for (const edge of edges) {
-      const intersection = lineEdgeIntersection(linePoint1, linePoint2, edge.start, edge.end);
+      // PASS NORMAL HERE
+      const intersection = lineEdgeIntersection(linePoint1, linePoint2, edge.start, edge.end, normal);
       if (intersection) {
         intersections.push({
           edge: edge,
@@ -213,9 +256,8 @@ export function findFacesOnLine(faces, linePoint1, linePoint2, excludeFace = nul
       }
     }
 
-    // Need exactly 2 intersections for a valid cut
+    // A valid cut through a convex face must enter one edge and exit another
     if (intersections.length === 2) {
-      // Make sure they're on different edges
       if (intersections[0].edge.startIndex !== intersections[1].edge.startIndex) {
         results.push({
           face: face,
@@ -228,6 +270,38 @@ export function findFacesOnLine(faces, linePoint1, linePoint2, excludeFace = nul
 
   return results;
 }
+
+
+
+/**
+ * Slices the mesh along a line defined by two points
+ * @param {Array<Face>} faces - The list of faces in your mesh
+ * @param {THREE.Vector3} startPoint - 3D start point of cut
+ * @param {THREE.Vector3} endPoint - 3D end point of cut
+ * @returns {Array<Face>} - The new list of faces (replacing the old ones)
+ */
+export function sliceMesh(faces, startPoint, endPoint) {
+  const cuts = findFacesOnLine(faces, startPoint, endPoint);
+  if (cuts.length === 0) return faces;
+
+  const newFaces = [...faces];
+  const facesToRemove = new Set();
+  const facesToAdd = [];
+
+  let nextId = Math.max(...faces.map(f => f.id)) + 1;
+
+  for (const cut of cuts) {
+    const result = splitFace(cut.face, cut.startEdge, cut.endEdge, nextId);
+    if (result) {
+      facesToRemove.add(cut.face);
+      facesToAdd.push(result.face1, result.face2);
+      nextId++;
+    }
+  }
+
+  return newFaces.filter(f => !facesToRemove.has(f)).concat(facesToAdd);
+}
+
 
 /**
  * Cut overlay for drawing cut lines on the mesh
@@ -265,6 +339,7 @@ export class CutOverlay {
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
+    this.handlePointerClick = this.handlePointerClick.bind(this);
 
     window.addEventListener('resize', this.handleResize);
     this.handleResize();
@@ -286,6 +361,7 @@ export class CutOverlay {
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
     this.canvas.addEventListener('pointerup', this.handlePointerUp);
+    this.canvas.addEventListener('click', this.handlePointerClick);
 
     this.reset();
     this.draw();
@@ -299,6 +375,7 @@ export class CutOverlay {
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
     this.canvas.removeEventListener('pointermove', this.handlePointerMove);
     this.canvas.removeEventListener('pointerup', this.handlePointerUp);
+    this.canvas.removeEventListener('click', this.handlePointerClick);
 
     // Ensure controls are re-enabled
     this.sceneManager.setControlsEnabled(true);
@@ -385,49 +462,18 @@ export class CutOverlay {
         });
         renderer.domElement.dispatchEvent(syntheticEvent);
       }
-
-      // Listen for pointerup on document since overlay won't receive it
-      const onDocumentPointerUp = () => {
-        this.isRotating = false;
-        this.canvas.style.pointerEvents = 'auto';
-        document.removeEventListener('pointerup', onDocumentPointerUp);
-      };
-      document.addEventListener('pointerup', onDocumentPointerUp);
       return;
     }
 
-    // Disable rotation when interacting with mesh
-    this.canvas.style.pointerEvents = 'auto';
-    this.sceneManager.setControlsEnabled(false);
-    this.isRotating = false;
-
+    // Only set start point if we don't already have one
     if (!this.startPoint) {
-      // First click - set start
+      // Set start point for cut
+      this.startPoint = this.worldToScreen(result.edge.point);
       this.startEdge = result.edge;
       this.startFace = result.face;
-      this.startPoint = this.worldToScreen(result.edge.point);
-    } else {
-      // Second click - store pending cut if valid and signal ready
-      // Compare by face ID (more robust than object reference)
-      const sameFace = result.face.id === this.startFace.id;
-      const differentEdge = result.edge.edge.startIndex !== this.startEdge.edge.startIndex;
 
-      if (sameFace && differentEdge) {
-        this.pendingCut = {
-          face: this.startFace,
-          startEdge: this.startEdge,
-          endEdge: result.edge
-        };
-        if (this.onReady) {
-          this.onReady(this.pendingCut);
-        }
-      } else {
-        // Invalid cut - reset and allow user to try again
-        this.reset();
-      }
+      this.draw();
     }
-
-    this.draw();
   }
 
   /**
@@ -435,7 +481,8 @@ export class CutOverlay {
    */
   executePendingCut() {
     if (this.pendingCut && this.onCutComplete) {
-      this.onCutComplete(this.pendingCut.face, this.pendingCut.startEdge, this.pendingCut.endEdge);
+      // Pass just the points. The manager will handle finding the faces.
+      this.onCutComplete(this.pendingCut.startPoint, this.pendingCut.endPoint);
     }
     this.pendingCut = null;
     this.reset();
@@ -465,6 +512,34 @@ export class CutOverlay {
     }
 
     this.draw();
+  }
+
+  handlePointerClick(e) {
+    // Only process clicks on edges (not empty space)
+    const result = this.findEdgeAtPosition(e.clientX, e.clientY);
+    if (!result) return;
+
+    // If we don't have a start point yet, this click sets it (handled in handlePointerDown)
+    if (!this.startPoint) return;
+
+    // We have a start point and clicked on an edge - check if it's a valid second point
+    if (this.hoverPoint && this.hoverFace && this.startFace) {
+      const isValidCut = this.hoverEdge && 
+        this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
+
+      if (isValidCut) {
+        // Store the cut data
+        this.pendingCut = {
+          startPoint: this.startEdge.point,
+          endPoint: this.hoverEdge.point
+        };
+
+        // Show approval button
+        if (this.onReady) {
+          this.onReady();
+        }
+      }
+    }
   }
 
   handlePointerUp(e) {
@@ -506,7 +581,7 @@ export class CutOverlay {
     const isValidCut = this.startPoint &&
       this.hoverEdge &&
       this.hoverFace && this.startFace &&
-      this.hoverFace.id === this.startFace.id &&
+    //  this.hoverFace.id === this.startFace.id && // this was causing issues with cutting of lines
       this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
 
     // Draw hover edge highlight (when no start point set)

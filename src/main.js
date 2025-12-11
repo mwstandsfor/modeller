@@ -8,7 +8,7 @@ import { HistoryManager } from './history/undo.js';
 import { StorageManager } from './storage/local.js';
 import { PerspectiveOverlay } from './perspective/overlay.js';
 import { perspectiveTransform, isOpenCVReady, waitForOpenCV } from './perspective/dewarp.js';
-import { CutOverlay, splitFace, findFacesOnLine } from './geometry/cut.js';
+import { CutOverlay, sliceMesh } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
 import { ExtrudeTool, extrudeFace } from './geometry/extrude.js';
 import { InsetTool, insetFace } from './geometry/inset.js';
@@ -56,7 +56,20 @@ class App {
     // No need for onExitPreview - we keep the rectified image when editing
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
-    this.cutOverlay.onCutComplete = (face, startEdge, endEdge) => this.onCutComplete(face, startEdge, endEdge);
+    this.cutOverlay.onCutComplete = (point1, point2) => {
+      // 1. Get current faces
+      const currentFaces = this.editableMesh.faces;
+
+      // 2. Run the slice
+      const updatedFaces = sliceMesh(currentFaces, point1, point2);
+
+      // 3. Update the mesh
+      this.editableMesh.faces = updatedFaces;
+      this.editableMesh.rebuildMesh();
+
+      // 4. Save state for undo
+      this.history.pushState(this.getSerializableState(), 'Cut faces');
+    };
     this.cutOverlay.onReady = () => {
       this.showApproveButton(() => {
         this.cutOverlay.executePendingCut();
@@ -197,6 +210,7 @@ class App {
       const stored = localStorage.getItem('imagemodel_recent');
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
+      console.warn('Could not load recent images:', e.message);
       return [];
     }
   }
@@ -208,7 +222,16 @@ class App {
     try {
       localStorage.setItem('imagemodel_recent', JSON.stringify(this.recentImages));
     } catch (e) {
-      console.warn('Could not save recent images');
+      console.warn('Could not save recent images:', e.message);
+      // Clear oldest images and retry
+      if (e.message.includes('quota') && this.recentImages.length > 0) {
+        this.recentImages = this.recentImages.slice(0, Math.max(1, Math.floor(this.recentImages.length / 2)));
+        try {
+          localStorage.setItem('imagemodel_recent', JSON.stringify(this.recentImages));
+        } catch (e2) {
+          console.warn('Still could not save after clearing:', e2.message);
+        }
+      }
     }
   }
 
@@ -823,66 +846,6 @@ class App {
     if (face) {
       console.log('Face selected:', face.id);
     }
-  }
-
-  /**
-   * Handle cut complete - cuts through all faces along the cut line
-   */
-  onCutComplete(face, startEdge, endEdge) {
-    console.log('Cut:', face.id, startEdge, endEdge);
-
-    // Save state for undo
-    this.history.pushState(this.getSerializableState(), 'Cut faces');
-
-    // Define the cut line from the two edge points
-    const linePoint1 = startEdge.point;
-    const linePoint2 = endEdge.point;
-
-    // Find all other faces that this line passes through
-    const additionalCuts = findFacesOnLine(
-      this.editableMesh.faces,
-      linePoint1,
-      linePoint2,
-      face // exclude the primary face
-    );
-
-    // Collect all cuts to perform (primary + additional)
-    const allCuts = [
-      { face, startEdge, endEdge },
-      ...additionalCuts
-    ];
-
-    let nextFaceId = this.editableMesh.nextFaceId;
-    const facesToRemove = [];
-    const facesToAdd = [];
-
-    // Perform all cuts
-    for (const cut of allCuts) {
-      const result = splitFace(cut.face, cut.startEdge, cut.endEdge, nextFaceId);
-
-      if (result) {
-        facesToRemove.push(cut.face.id);
-        facesToAdd.push(result.face1);
-        facesToAdd.push(result.face2);
-        nextFaceId = result.face2.id + 1;
-
-        console.log('Face', cut.face.id, 'split into', result.face1.id, 'and', result.face2.id);
-      }
-    }
-
-    // Remove old faces
-    this.editableMesh.faces = this.editableMesh.faces.filter(
-      f => !facesToRemove.includes(f.id)
-    );
-
-    // Add new faces
-    this.editableMesh.faces.push(...facesToAdd);
-    this.editableMesh.nextFaceId = nextFaceId;
-
-    // Rebuild mesh
-    this.editableMesh.rebuildMesh();
-
-    console.log('Cut complete:', facesToRemove.length, 'faces split into', facesToAdd.length, 'new faces');
   }
 
   /**
