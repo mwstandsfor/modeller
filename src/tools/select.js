@@ -53,6 +53,9 @@ export class SelectTool {
     this.canvas = canvas;
     canvas.addEventListener('pointerdown', this.handlePointerDown);
     canvas.addEventListener('pointermove', this.handlePointerMove);
+
+    // Enable controls for wheel zoom and rotation
+    this.sceneManager.setControlsEnabled(true);
   }
 
   deactivate() {

@@ -723,9 +723,8 @@ class App {
         break;
     }
 
-    // Update orbit controls
-    const orbitModes = [Modes.IDLE, Modes.SELECT];
-    this.scene.setControlsEnabled(orbitModes.includes(newMode));
+    // Controls are managed by each tool's activate() method
+    // All tools now enable controls for zoom, individual tools control rotation
   }
 
   /**

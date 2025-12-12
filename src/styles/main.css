@@ -584,6 +584,10 @@ body {
   gap: 16px;
 }
 
+.martin-top-buffer{
+  margin-top: 46px;
+}
+
 .shortcut-label {
   font-family: 'Inter', sans-serif;
   font-weight: 500;

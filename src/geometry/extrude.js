@@ -140,6 +140,9 @@ export class ExtrudeTool {
     canvas.addEventListener('pointermove', this.handlePointerMove);
     canvas.addEventListener('pointerup', this.handlePointerUp);
     canvas.addEventListener('pointerleave', this.handlePointerUp);
+
+    // Enable controls for wheel zoom
+    this.sceneManager.setControlsEnabled(true);
   }
 
   deactivate() {
