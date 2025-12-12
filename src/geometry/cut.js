@@ -559,7 +559,8 @@ export class CutOverlay {
     if (this.isRotating) {
       this.isRotating = false;
       this.canvas.style.pointerEvents = 'auto';
-      this.sceneManager.setControlsEnabled(false);
+      // Keep controls enabled for wheel zoom - only disable rotation dragging
+      // by restoring pointer events on overlay
     }
   }
 
