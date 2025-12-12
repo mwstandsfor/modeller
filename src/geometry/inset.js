@@ -73,21 +73,22 @@ export function insetFace(face, thickness, nextFaceId) {
 /**
  * Inset tool handler
  * Manages the drag interaction for insetting faces
+ * Supports multi-selection
  */
 export class InsetTool {
   constructor(sceneManager) {
     this.sceneManager = sceneManager;
     this.editableMesh = null;
-    this.selectedFace = null;
+    this.selectedFaces = [];  // Array for multi-selection
 
     this.isInsetting = false;
     this.startX = 0;
     this.currentThickness = 0;
 
-    // Preview mesh for inset
-    this.previewMesh = null;
+    // Preview meshes for inset
+    this.previewMeshes = [];
     this.previewMaterial = new THREE.MeshBasicMaterial({
-      color: 0x9b59b6,  // Purple
+      color: 0xB68133,  // Match selection color
       transparent: true,
       opacity: 0.5,
       side: THREE.DoubleSide
@@ -112,8 +113,14 @@ export class InsetTool {
     this.editableMesh = editableMesh;
   }
 
+  setSelectedFaces(faces) {
+    this.selectedFaces = faces || [];
+    this.updatePreview();
+  }
+
+  // Legacy support for single face
   setSelectedFace(face) {
-    this.selectedFace = face;
+    this.selectedFaces = face ? [face] : [];
     this.updatePreview();
   }
 
@@ -136,7 +143,7 @@ export class InsetTool {
   }
 
   handlePointerDown(e) {
-    if (!this.selectedFace) {
+    if (this.selectedFaces.length === 0) {
       // Allow 3D rotation when no face is selected
       this.sceneManager.setControlsEnabled(true);
       return;
@@ -162,7 +169,7 @@ export class InsetTool {
   }
 
   handlePointerMove(e) {
-    if (!this.isInsetting || !this.selectedFace) return;
+    if (!this.isInsetting || this.selectedFaces.length === 0) return;
 
     // Drag right = more inset
     const deltaX = e.clientX - this.startX;
@@ -182,7 +189,7 @@ export class InsetTool {
     // If we moved enough, store pending and signal ready for approval
     if (this.currentThickness > 0.02) {
       this.pendingInset = {
-        face: this.selectedFace,
+        faces: [...this.selectedFaces],
         thickness: this.currentThickness
       };
       // Keep the preview visible while waiting for approval
@@ -200,7 +207,7 @@ export class InsetTool {
    */
   executePendingInset() {
     if (this.pendingInset && this.onInsetComplete) {
-      this.onInsetComplete(this.pendingInset.face, this.pendingInset.thickness);
+      this.onInsetComplete(this.pendingInset.faces, this.pendingInset.thickness);
     }
     this.pendingInset = null;
     this.currentThickness = 0;
@@ -217,51 +224,54 @@ export class InsetTool {
   }
 
   updatePreview() {
-    if (!this.selectedFace) return;
+    if (this.selectedFaces.length === 0) return;
 
-    // Remove old preview
+    // Remove old previews
     this.removePreview();
 
     if (this.currentThickness < 0.01) return;
 
-    // Create preview geometry
-    const result = insetFace(this.selectedFace, this.currentThickness, 0);
+    // Create preview geometry for each selected face
+    this.selectedFaces.forEach(face => {
+      const result = insetFace(face, this.currentThickness, 0);
 
-    // Build preview mesh from inset face and side faces
-    const positions = [];
-    const indices = [];
+      // Build preview mesh from inset face and side faces
+      const positions = [];
+      const indices = [];
 
-    const addFace = (face) => {
-      const startIdx = positions.length / 3;
+      const addFace = (f) => {
+        const startIdx = positions.length / 3;
 
-      face.vertices.forEach(v => {
-        positions.push(v.x, v.y, v.z);
-      });
+        f.vertices.forEach(v => {
+          positions.push(v.x, v.y, v.z);
+        });
 
-      // Triangulate
-      for (let i = 1; i < face.vertices.length - 1; i++) {
-        indices.push(startIdx, startIdx + i, startIdx + i + 1);
-      }
-    };
+        // Triangulate
+        for (let i = 1; i < f.vertices.length - 1; i++) {
+          indices.push(startIdx, startIdx + i, startIdx + i + 1);
+        }
+      };
 
-    addFace(result.insetFace);
-    result.sideFaces.forEach(f => addFace(f));
+      addFace(result.insetFace);
+      result.sideFaces.forEach(f => addFace(f));
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
 
-    this.previewMesh = new THREE.Mesh(geometry, this.previewMaterial);
-    this.sceneManager.add(this.previewMesh);
+      const previewMesh = new THREE.Mesh(geometry, this.previewMaterial);
+      this.sceneManager.add(previewMesh);
+      this.previewMeshes.push(previewMesh);
+    });
   }
 
   removePreview() {
-    if (this.previewMesh) {
-      this.sceneManager.remove(this.previewMesh);
-      this.previewMesh.geometry.dispose();
-      this.previewMesh = null;
-    }
+    this.previewMeshes.forEach(mesh => {
+      this.sceneManager.remove(mesh);
+      mesh.geometry.dispose();
+    });
+    this.previewMeshes = [];
   }
 
   dispose() {

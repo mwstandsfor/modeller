@@ -65,22 +65,23 @@ export function extrudeFace(face, distance, nextFaceId) {
 /**
  * Extrusion tool handler
  * Manages the drag interaction for extruding faces
+ * Supports multi-selection
  */
 export class ExtrudeTool {
   constructor(sceneManager) {
     this.sceneManager = sceneManager;
     this.editableMesh = null;
-    this.selectedFace = null;
+    this.selectedFaces = [];  // Array for multi-selection
 
     this.isExtruding = false;
     this.startY = 0;
     this.startDistance = 0;
     this.currentDistance = 0;
 
-    // Preview mesh for extrusion
-    this.previewMesh = null;
+    // Preview meshes for extrusion
+    this.previewMeshes = [];
     this.previewMaterial = new THREE.MeshBasicMaterial({
-      color: 0x4a90d9,
+      color: 0xB68133,  // Match selection color
       transparent: true,
       opacity: 0.5,
       side: THREE.DoubleSide
@@ -105,8 +106,14 @@ export class ExtrudeTool {
     this.editableMesh = editableMesh;
   }
 
+  setSelectedFaces(faces) {
+    this.selectedFaces = faces || [];
+    this.updatePreview();
+  }
+
+  // Legacy support for single face
   setSelectedFace(face) {
-    this.selectedFace = face;
+    this.selectedFaces = face ? [face] : [];
     this.updatePreview();
   }
 
@@ -129,7 +136,7 @@ export class ExtrudeTool {
   }
 
   handlePointerDown(e) {
-    if (!this.selectedFace) {
+    if (this.selectedFaces.length === 0) {
       // Allow 3D rotation when no face is selected
       this.sceneManager.setControlsEnabled(true);
       return;
@@ -156,7 +163,7 @@ export class ExtrudeTool {
   }
 
   handlePointerMove(e) {
-    if (!this.isExtruding || !this.selectedFace) return;
+    if (!this.isExtruding || this.selectedFaces.length === 0) return;
 
     const deltaY = this.startY - e.clientY;
     this.currentDistance = deltaY * this.sensitivity;
@@ -175,7 +182,7 @@ export class ExtrudeTool {
     // If we moved enough, store pending and signal ready for approval
     if (Math.abs(this.currentDistance) > 0.01) {
       this.pendingExtrusion = {
-        face: this.selectedFace,
+        faces: [...this.selectedFaces],
         distance: this.currentDistance
       };
       // Keep the preview visible while waiting for approval
@@ -193,7 +200,7 @@ export class ExtrudeTool {
    */
   executePendingExtrusion() {
     if (this.pendingExtrusion && this.onExtrudeComplete) {
-      this.onExtrudeComplete(this.pendingExtrusion.face, this.pendingExtrusion.distance);
+      this.onExtrudeComplete(this.pendingExtrusion.faces, this.pendingExtrusion.distance);
     }
     this.pendingExtrusion = null;
     this.currentDistance = 0;
@@ -210,51 +217,54 @@ export class ExtrudeTool {
   }
 
   updatePreview() {
-    if (!this.selectedFace) return;
+    if (this.selectedFaces.length === 0) return;
 
-    // Remove old preview
+    // Remove old previews
     this.removePreview();
 
     if (Math.abs(this.currentDistance) < 0.001) return;
 
-    // Create preview geometry
-    const result = extrudeFace(this.selectedFace, this.currentDistance, 0);
+    // Create preview geometry for each selected face
+    this.selectedFaces.forEach(face => {
+      const result = extrudeFace(face, this.currentDistance, 0);
 
-    // Build preview mesh from extruded face and side faces
-    const positions = [];
-    const indices = [];
+      // Build preview mesh from extruded face and side faces
+      const positions = [];
+      const indices = [];
 
-    const addFace = (face, indexOffset) => {
-      const startIdx = positions.length / 3;
+      const addFace = (f) => {
+        const startIdx = positions.length / 3;
 
-      face.vertices.forEach(v => {
-        positions.push(v.x, v.y, v.z);
-      });
+        f.vertices.forEach(v => {
+          positions.push(v.x, v.y, v.z);
+        });
 
-      // Triangulate
-      for (let i = 1; i < face.vertices.length - 1; i++) {
-        indices.push(startIdx, startIdx + i, startIdx + i + 1);
-      }
-    };
+        // Triangulate
+        for (let i = 1; i < f.vertices.length - 1; i++) {
+          indices.push(startIdx, startIdx + i, startIdx + i + 1);
+        }
+      };
 
-    addFace(result.extrudedFace);
-    result.sideFaces.forEach(f => addFace(f));
+      addFace(result.extrudedFace);
+      result.sideFaces.forEach(f => addFace(f));
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
 
-    this.previewMesh = new THREE.Mesh(geometry, this.previewMaterial);
-    this.sceneManager.add(this.previewMesh);
+      const previewMesh = new THREE.Mesh(geometry, this.previewMaterial);
+      this.sceneManager.add(previewMesh);
+      this.previewMeshes.push(previewMesh);
+    });
   }
 
   removePreview() {
-    if (this.previewMesh) {
-      this.sceneManager.remove(this.previewMesh);
-      this.previewMesh.geometry.dispose();
-      this.previewMesh = null;
-    }
+    this.previewMeshes.forEach(mesh => {
+      this.sceneManager.remove(mesh);
+      mesh.geometry.dispose();
+    });
+    this.previewMeshes = [];
   }
 
   dispose() {

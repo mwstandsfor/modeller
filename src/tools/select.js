@@ -3,29 +3,30 @@ import * as THREE from 'three';
 /**
  * Face selection tool
  * Click on faces to select them for extrusion
+ * Shift+click to add/remove from selection
  */
 export class SelectTool {
   constructor(sceneManager) {
     this.sceneManager = sceneManager;
     this.editableMesh = null;
-    this.selectedFace = null;
+    this.selectedFaces = [];  // Array for multi-selection
 
-    // Visual feedback
-    this.highlightMesh = null;
+    // Visual feedback - using design colors
+    this.highlightMeshes = [];
     this.highlightMaterial = new THREE.MeshBasicMaterial({
-      color: 0x4a90d9,
+      color: 0xB68133,  // Face Selection overlay
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.4,
       side: THREE.DoubleSide,
       depthTest: false
     });
 
     this.outlineMaterial = new THREE.LineBasicMaterial({
-      color: 0x4a90d9,
+      color: 0xFF9900,  // SelectionBorder
       linewidth: 2
     });
 
-    this.outlineMesh = null;
+    this.outlineMeshes = [];
 
     // Hover highlight
     this.hoverMesh = null;
@@ -67,10 +68,18 @@ export class SelectTool {
     if (!this.editableMesh) return;
 
     const face = this.raycastFace(e.clientX, e.clientY);
+    const isShiftClick = e.shiftKey;
 
     if (face) {
-      this.selectFace(face);
-    } else {
+      if (isShiftClick) {
+        // Toggle face in selection
+        this.toggleFaceSelection(face);
+      } else {
+        // Clear selection and select only this face
+        this.selectFace(face);
+      }
+    } else if (!isShiftClick) {
+      // Clear selection when clicking empty space (without shift)
       this.clearSelection();
     }
   }
@@ -120,91 +129,147 @@ export class SelectTool {
     return closestFace;
   }
 
+  /**
+   * Select a single face (clear previous selection)
+   */
   selectFace(face) {
+    // Clear previous selection
+    this.selectedFaces = [];
+
+    if (face) {
+      this.selectedFaces = [face];
+    }
+
     // Update mesh selection state
-    this.editableMesh.selectFace(face);
-    this.selectedFace = face;
+    this.editableMesh.faces.forEach(f => f.selected = false);
+    if (face) {
+      face.selected = true;
+    }
 
     // Update visual
-    this.updateHighlight(face);
+    this.updateHighlight();
 
     // Callback
     if (this.onSelect) {
-      this.onSelect(face);
+      this.onSelect(this.selectedFaces);
     }
+  }
+
+  /**
+   * Toggle face in multi-selection
+   */
+  toggleFaceSelection(face) {
+    const index = this.selectedFaces.findIndex(f => f.id === face.id);
+
+    if (index >= 0) {
+      // Remove from selection
+      this.selectedFaces.splice(index, 1);
+      face.selected = false;
+    } else {
+      // Add to selection
+      this.selectedFaces.push(face);
+      face.selected = true;
+    }
+
+    // Update visual
+    this.updateHighlight();
+
+    // Callback
+    if (this.onSelect) {
+      this.onSelect(this.selectedFaces);
+    }
+  }
+
+  /**
+   * Check if a face is selected
+   */
+  isFaceSelected(face) {
+    return this.selectedFaces.some(f => f.id === face.id);
+  }
+
+  /**
+   * Get selected faces
+   */
+  getSelectedFaces() {
+    return this.selectedFaces;
   }
 
   clearSelection() {
     if (this.editableMesh) {
-      this.editableMesh.selectFace(null);
+      this.editableMesh.faces.forEach(f => f.selected = false);
     }
-    this.selectedFace = null;
+    this.selectedFaces = [];
     this.clearHighlight();
 
     if (this.onSelect) {
-      this.onSelect(null);
+      this.onSelect([]);
     }
   }
 
-  updateHighlight(face) {
+  updateHighlight() {
     this.clearHighlight();
 
-    if (!face) return;
+    if (this.selectedFaces.length === 0) return;
 
-    // Create highlight mesh
-    const positions = [];
-    face.vertices.forEach(v => {
-      positions.push(v.x, v.y, v.z);
+    // Create highlight for each selected face
+    this.selectedFaces.forEach(face => {
+      // Create highlight mesh
+      const positions = [];
+      face.vertices.forEach(v => {
+        positions.push(v.x, v.y, v.z);
+      });
+
+      const indices = [];
+      for (let i = 1; i < face.vertices.length - 1; i++) {
+        indices.push(0, i, i + 1);
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(indices);
+
+      const highlightMesh = new THREE.Mesh(geometry, this.highlightMaterial);
+      highlightMesh.renderOrder = 999;
+      this.sceneManager.add(highlightMesh);
+      this.highlightMeshes.push(highlightMesh);
+
+      // Create outline
+      const outlinePositions = [];
+      face.vertices.forEach(v => {
+        outlinePositions.push(v.x, v.y, v.z);
+      });
+      // Close the loop
+      outlinePositions.push(face.vertices[0].x, face.vertices[0].y, face.vertices[0].z);
+
+      const outlineGeometry = new THREE.BufferGeometry();
+      outlineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(outlinePositions, 3));
+
+      const outlineMesh = new THREE.Line(outlineGeometry, this.outlineMaterial);
+      outlineMesh.renderOrder = 1000;
+      this.sceneManager.add(outlineMesh);
+      this.outlineMeshes.push(outlineMesh);
     });
-
-    const indices = [];
-    for (let i = 1; i < face.vertices.length - 1; i++) {
-      indices.push(0, i, i + 1);
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-
-    this.highlightMesh = new THREE.Mesh(geometry, this.highlightMaterial);
-    this.highlightMesh.renderOrder = 999;
-    this.sceneManager.add(this.highlightMesh);
-
-    // Create outline
-    const outlinePositions = [];
-    face.vertices.forEach(v => {
-      outlinePositions.push(v.x, v.y, v.z);
-    });
-    // Close the loop
-    outlinePositions.push(face.vertices[0].x, face.vertices[0].y, face.vertices[0].z);
-
-    const outlineGeometry = new THREE.BufferGeometry();
-    outlineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(outlinePositions, 3));
-
-    this.outlineMesh = new THREE.Line(outlineGeometry, this.outlineMaterial);
-    this.outlineMesh.renderOrder = 1000;
-    this.sceneManager.add(this.outlineMesh);
   }
 
   clearHighlight() {
-    if (this.highlightMesh) {
-      this.sceneManager.remove(this.highlightMesh);
-      this.highlightMesh.geometry.dispose();
-      this.highlightMesh = null;
-    }
+    this.highlightMeshes.forEach(mesh => {
+      this.sceneManager.remove(mesh);
+      mesh.geometry.dispose();
+    });
+    this.highlightMeshes = [];
 
-    if (this.outlineMesh) {
-      this.sceneManager.remove(this.outlineMesh);
-      this.outlineMesh.geometry.dispose();
-      this.outlineMesh = null;
-    }
+    this.outlineMeshes.forEach(mesh => {
+      this.sceneManager.remove(mesh);
+      mesh.geometry.dispose();
+    });
+    this.outlineMeshes = [];
   }
 
   updateHover(face) {
     this.clearHover();
 
-    // Don't hover on selected face
-    if (!face || face === this.selectedFace) return;
+    // Don't hover on selected faces
+    if (!face || this.isFaceSelected(face)) return;
 
     const positions = [];
     face.vertices.forEach(v => {

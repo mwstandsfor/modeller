@@ -86,10 +86,10 @@ class App {
     };
 
     this.selectTool = new SelectTool(this.scene);
-    this.selectTool.onSelect = (face) => this.onFaceSelected(face);
+    this.selectTool.onSelect = (faces) => this.onFacesSelected(faces);
 
     this.extrudeTool = new ExtrudeTool(this.scene);
-    this.extrudeTool.onExtrudeComplete = (face, distance) => this.onExtrudeComplete(face, distance);
+    this.extrudeTool.onExtrudeComplete = (faces, distance) => this.onExtrudeComplete(faces, distance);
     this.extrudeTool.onReady = () => {
       this.showApproveButton(
         () => this.extrudeTool.executePendingExtrusion(),
@@ -99,7 +99,7 @@ class App {
     };
 
     this.insetTool = new InsetTool(this.scene);
-    this.insetTool.onInsetComplete = (face, thickness) => this.onInsetComplete(face, thickness);
+    this.insetTool.onInsetComplete = (faces, thickness) => this.onInsetComplete(faces, thickness);
     this.insetTool.onReady = () => {
       this.showApproveButton(
         () => this.insetTool.executePendingInset(),
@@ -113,7 +113,7 @@ class App {
     this.editableMesh = null;
     this.hasImage = false;
     this.hasMesh = false;
-    this.selectedFace = null;
+    this.selectedFaces = [];
     this.gridSnap = false;
 
     // Image/texture data
@@ -691,16 +691,16 @@ class App {
         }
         break;
       case Modes.EXTRUDE:
-        if (this.editableMesh && this.selectedFace) {
+        if (this.editableMesh && this.selectedFaces.length > 0) {
           this.extrudeTool.setMesh(this.editableMesh);
-          this.extrudeTool.setSelectedFace(this.selectedFace);
+          this.extrudeTool.setSelectedFaces(this.selectedFaces);
           this.extrudeTool.activate(this.canvas);
         }
         break;
       case Modes.INSET:
-        if (this.editableMesh && this.selectedFace) {
+        if (this.editableMesh && this.selectedFaces.length > 0) {
           this.insetTool.setMesh(this.editableMesh);
-          this.insetTool.setSelectedFace(this.selectedFace);
+          this.insetTool.setSelectedFaces(this.selectedFaces);
           this.insetTool.activate(this.canvas);
         }
         break;
@@ -718,7 +718,8 @@ class App {
     const state = {
       hasImage: this.hasImage,
       hasMesh: this.hasMesh,
-      hasSelection: this.selectedFace !== null,
+      hasSelection: this.selectedFaces.length > 0,
+      selectionCount: this.selectedFaces.length,
       mode: this.modeManager.getMode(),
       modeDescription: this.modeManager.getDescription(),
       instructions: this.modeManager.getInstructions(),
@@ -764,7 +765,7 @@ class App {
 
       this.hasImage = true;
       this.hasMesh = false;
-      this.selectedFace = null;
+      this.selectedFaces = [];
 
       this.scene.resetCamera();
       this.setMode(Modes.PERSPECTIVE);
@@ -874,48 +875,70 @@ class App {
   }
 
   /**
-   * Handle face selection
+   * Handle face selection (multi-select)
    */
-  onFaceSelected(face) {
-    this.selectedFace = face;
+  onFacesSelected(faces) {
+    this.selectedFaces = faces || [];
     this.updateUI();
 
-    if (face) {
-      console.log('Face selected:', face.id);
+    // Show skip button to clear selection when faces are selected
+    if (this.selectedFaces.length > 0) {
+      this.showCancelButton(() => {
+        this.selectTool.clearSelection();
+      });
+    } else {
+      this.hideCancelButton();
+    }
+
+    if (faces && faces.length > 0) {
+      console.log('Faces selected:', faces.map(f => f.id).join(', '));
     }
   }
 
   /**
-   * Handle extrusion complete
+   * Handle extrusion complete (multi-select)
    */
-  onExtrudeComplete(face, distance) {
-    console.log('Extrude:', face.id, 'distance:', distance);
+  onExtrudeComplete(faces, distance) {
+    console.log('Extrude:', faces.map(f => f.id).join(', '), 'distance:', distance);
 
     // Save state for undo
-    this.history.pushState(this.getSerializableState(), 'Extrude face');
+    this.history.pushState(this.getSerializableState(), 'Extrude faces');
 
-    // Perform extrusion
-    const result = extrudeFace(face, distance, this.editableMesh.nextFaceId);
+    const extrudedFaces = [];
 
-    // Remove original face
-    const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
-    if (faceIndex >= 0) {
-      this.editableMesh.faces.splice(faceIndex, 1);
-    }
+    // Perform extrusion for each selected face
+    faces.forEach(face => {
+      const result = extrudeFace(face, distance, this.editableMesh.nextFaceId);
 
-    // Add extruded face and side faces
-    this.editableMesh.faces.push(result.extrudedFace);
-    result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
-    this.editableMesh.nextFaceId = result.nextFaceId;
+      // Remove original face
+      const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
+      if (faceIndex >= 0) {
+        this.editableMesh.faces.splice(faceIndex, 1);
+      }
+
+      // Add extruded face and side faces
+      this.editableMesh.faces.push(result.extrudedFace);
+      result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
+      this.editableMesh.nextFaceId = result.nextFaceId;
+
+      extrudedFaces.push(result.extrudedFace);
+    });
 
     // Rebuild mesh
     this.editableMesh.rebuildMesh();
 
-    // Update selection to extruded face
-    this.selectedFace = result.extrudedFace;
+    // Update selection to extruded faces
+    this.selectedFaces = extrudedFaces;
     this.selectTool.setMesh(this.editableMesh);
-    this.selectTool.selectFace(result.extrudedFace);
-    this.extrudeTool.setSelectedFace(result.extrudedFace);
+    // Select all extruded faces
+    extrudedFaces.forEach((face, i) => {
+      if (i === 0) {
+        this.selectTool.selectFace(face);
+      } else {
+        this.selectTool.toggleFaceSelection(face);
+      }
+    });
+    this.extrudeTool.setSelectedFaces(extrudedFaces);
 
     this.updateUI();
 
@@ -923,36 +946,49 @@ class App {
   }
 
   /**
-   * Handle inset complete
+   * Handle inset complete (multi-select)
    */
-  onInsetComplete(face, thickness) {
-    console.log('Inset:', face.id, 'thickness:', thickness);
+  onInsetComplete(faces, thickness) {
+    console.log('Inset:', faces.map(f => f.id).join(', '), 'thickness:', thickness);
 
     // Save state for undo
-    this.history.pushState(this.getSerializableState(), 'Inset face');
+    this.history.pushState(this.getSerializableState(), 'Inset faces');
 
-    // Perform inset
-    const result = insetFace(face, thickness, this.editableMesh.nextFaceId);
+    const insetFaces = [];
 
-    // Remove original face
-    const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
-    if (faceIndex >= 0) {
-      this.editableMesh.faces.splice(faceIndex, 1);
-    }
+    // Perform inset for each selected face
+    faces.forEach(face => {
+      const result = insetFace(face, thickness, this.editableMesh.nextFaceId);
 
-    // Add inset face and side faces
-    this.editableMesh.faces.push(result.insetFace);
-    result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
-    this.editableMesh.nextFaceId = result.nextFaceId;
+      // Remove original face
+      const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
+      if (faceIndex >= 0) {
+        this.editableMesh.faces.splice(faceIndex, 1);
+      }
+
+      // Add inset face and side faces
+      this.editableMesh.faces.push(result.insetFace);
+      result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
+      this.editableMesh.nextFaceId = result.nextFaceId;
+
+      insetFaces.push(result.insetFace);
+    });
 
     // Rebuild mesh
     this.editableMesh.rebuildMesh();
 
-    // Update selection to inset face (the center face)
-    this.selectedFace = result.insetFace;
+    // Update selection to inset faces (the center faces)
+    this.selectedFaces = insetFaces;
     this.selectTool.setMesh(this.editableMesh);
-    this.selectTool.selectFace(result.insetFace);
-    this.insetTool.setSelectedFace(result.insetFace);
+    // Select all inset faces
+    insetFaces.forEach((face, i) => {
+      if (i === 0) {
+        this.selectTool.selectFace(face);
+      } else {
+        this.selectTool.toggleFaceSelection(face);
+      }
+    });
+    this.insetTool.setSelectedFaces(insetFaces);
 
     this.updateUI();
 
@@ -1057,7 +1093,7 @@ class App {
     }
 
     // Clear selection on restore
-    this.selectedFace = null;
+    this.selectedFaces = [];
     if (this.selectTool) {
       this.selectTool.clearSelection();
     }

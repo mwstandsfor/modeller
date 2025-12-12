@@ -92,10 +92,10 @@ export class EditableMesh {
 
     // Wireframe material - renders on top with depth test disabled
     this.wireframeMaterial = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
+      color: 0xFF9900,  // ImageEdge color from design
       linewidth: 2,
       transparent: true,
-      opacity: 1.0,
+      opacity: 0.4,
       depthTest: false  // Always render on top
     });
   }
