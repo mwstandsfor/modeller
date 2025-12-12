@@ -87,11 +87,28 @@ export class InsetTool {
 
     // Preview meshes for inset
     this.previewMeshes = [];
-    this.previewMaterial = new THREE.MeshBasicMaterial({
+    this.previewWireframes = [];
+
+    // Material for side faces (semi-transparent)
+    this.sideMaterial = new THREE.MeshBasicMaterial({
       color: 0xB68133,  // Match selection color
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.4,
       side: THREE.DoubleSide
+    });
+
+    // Material for center inset face (more opaque to show where new face will be)
+    this.centerMaterial = new THREE.MeshBasicMaterial({
+      color: 0xB68133,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+
+    // Wireframe material for preview edges
+    this.wireframeMaterial = new THREE.LineBasicMaterial({
+      color: 0xFF9900,  // SelectionBorder color
+      linewidth: 2
     });
 
     // Callbacks
@@ -235,34 +252,78 @@ export class InsetTool {
     this.selectedFaces.forEach(face => {
       const result = insetFace(face, this.currentThickness, 0);
 
-      // Build preview mesh from inset face and side faces
-      const positions = [];
-      const indices = [];
+      // Build center inset face mesh (more opaque)
+      const centerPositions = [];
+      const centerIndices = [];
 
-      const addFace = (f) => {
-        const startIdx = positions.length / 3;
+      result.insetFace.vertices.forEach(v => {
+        centerPositions.push(v.x, v.y, v.z);
+      });
+      for (let i = 1; i < result.insetFace.vertices.length - 1; i++) {
+        centerIndices.push(0, i, i + 1);
+      }
 
+      const centerGeometry = new THREE.BufferGeometry();
+      centerGeometry.setAttribute('position', new THREE.Float32BufferAttribute(centerPositions, 3));
+      centerGeometry.setIndex(centerIndices);
+      centerGeometry.computeVertexNormals();
+
+      const centerMesh = new THREE.Mesh(centerGeometry, this.centerMaterial);
+      this.sceneManager.add(centerMesh);
+      this.previewMeshes.push(centerMesh);
+
+      // Build side faces mesh (semi-transparent)
+      const sidePositions = [];
+      const sideIndices = [];
+
+      result.sideFaces.forEach(f => {
+        const startIdx = sidePositions.length / 3;
         f.vertices.forEach(v => {
-          positions.push(v.x, v.y, v.z);
+          sidePositions.push(v.x, v.y, v.z);
         });
-
-        // Triangulate
         for (let i = 1; i < f.vertices.length - 1; i++) {
-          indices.push(startIdx, startIdx + i, startIdx + i + 1);
+          sideIndices.push(startIdx, startIdx + i, startIdx + i + 1);
         }
-      };
+      });
 
-      addFace(result.insetFace);
-      result.sideFaces.forEach(f => addFace(f));
+      const sideGeometry = new THREE.BufferGeometry();
+      sideGeometry.setAttribute('position', new THREE.Float32BufferAttribute(sidePositions, 3));
+      sideGeometry.setIndex(sideIndices);
+      sideGeometry.computeVertexNormals();
 
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setIndex(indices);
-      geometry.computeVertexNormals();
+      const sideMesh = new THREE.Mesh(sideGeometry, this.sideMaterial);
+      this.sceneManager.add(sideMesh);
+      this.previewMeshes.push(sideMesh);
 
-      const previewMesh = new THREE.Mesh(geometry, this.previewMaterial);
-      this.sceneManager.add(previewMesh);
-      this.previewMeshes.push(previewMesh);
+      // Build wireframe for all edges
+      const wireframePositions = [];
+
+      // Center inset face edges
+      const insetVerts = result.insetFace.vertices;
+      for (let i = 0; i < insetVerts.length; i++) {
+        const next = (i + 1) % insetVerts.length;
+        wireframePositions.push(
+          insetVerts[i].x, insetVerts[i].y, insetVerts[i].z,
+          insetVerts[next].x, insetVerts[next].y, insetVerts[next].z
+        );
+      }
+
+      // Side edges (connecting outer to inner)
+      const outerVerts = face.vertices;
+      for (let i = 0; i < outerVerts.length; i++) {
+        wireframePositions.push(
+          outerVerts[i].x, outerVerts[i].y, outerVerts[i].z,
+          insetVerts[i].x, insetVerts[i].y, insetVerts[i].z
+        );
+      }
+
+      const wireframeGeometry = new THREE.BufferGeometry();
+      wireframeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(wireframePositions, 3));
+
+      const wireframe = new THREE.LineSegments(wireframeGeometry, this.wireframeMaterial);
+      wireframe.renderOrder = 2;  // Render on top
+      this.sceneManager.add(wireframe);
+      this.previewWireframes.push(wireframe);
     });
   }
 
@@ -272,10 +333,18 @@ export class InsetTool {
       mesh.geometry.dispose();
     });
     this.previewMeshes = [];
+
+    this.previewWireframes.forEach(wireframe => {
+      this.sceneManager.remove(wireframe);
+      wireframe.geometry.dispose();
+    });
+    this.previewWireframes = [];
   }
 
   dispose() {
     this.deactivate();
-    this.previewMaterial.dispose();
+    this.sideMaterial.dispose();
+    this.centerMaterial.dispose();
+    this.wireframeMaterial.dispose();
   }
 }

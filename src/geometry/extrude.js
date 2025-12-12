@@ -80,11 +80,28 @@ export class ExtrudeTool {
 
     // Preview meshes for extrusion
     this.previewMeshes = [];
-    this.previewMaterial = new THREE.MeshBasicMaterial({
+    this.previewWireframes = [];
+
+    // Material for side faces (semi-transparent)
+    this.sideMaterial = new THREE.MeshBasicMaterial({
       color: 0xB68133,  // Match selection color
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.4,
       side: THREE.DoubleSide
+    });
+
+    // Material for front face (more opaque to show where new face will be)
+    this.frontMaterial = new THREE.MeshBasicMaterial({
+      color: 0xB68133,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+
+    // Wireframe material for preview edges
+    this.wireframeMaterial = new THREE.LineBasicMaterial({
+      color: 0xFF9900,  // SelectionBorder color
+      linewidth: 2
     });
 
     // Callbacks
@@ -228,34 +245,78 @@ export class ExtrudeTool {
     this.selectedFaces.forEach(face => {
       const result = extrudeFace(face, this.currentDistance, 0);
 
-      // Build preview mesh from extruded face and side faces
-      const positions = [];
-      const indices = [];
+      // Build front face mesh (more opaque)
+      const frontPositions = [];
+      const frontIndices = [];
 
-      const addFace = (f) => {
-        const startIdx = positions.length / 3;
+      result.extrudedFace.vertices.forEach(v => {
+        frontPositions.push(v.x, v.y, v.z);
+      });
+      for (let i = 1; i < result.extrudedFace.vertices.length - 1; i++) {
+        frontIndices.push(0, i, i + 1);
+      }
 
+      const frontGeometry = new THREE.BufferGeometry();
+      frontGeometry.setAttribute('position', new THREE.Float32BufferAttribute(frontPositions, 3));
+      frontGeometry.setIndex(frontIndices);
+      frontGeometry.computeVertexNormals();
+
+      const frontMesh = new THREE.Mesh(frontGeometry, this.frontMaterial);
+      this.sceneManager.add(frontMesh);
+      this.previewMeshes.push(frontMesh);
+
+      // Build side faces mesh (semi-transparent)
+      const sidePositions = [];
+      const sideIndices = [];
+
+      result.sideFaces.forEach(f => {
+        const startIdx = sidePositions.length / 3;
         f.vertices.forEach(v => {
-          positions.push(v.x, v.y, v.z);
+          sidePositions.push(v.x, v.y, v.z);
         });
-
-        // Triangulate
         for (let i = 1; i < f.vertices.length - 1; i++) {
-          indices.push(startIdx, startIdx + i, startIdx + i + 1);
+          sideIndices.push(startIdx, startIdx + i, startIdx + i + 1);
         }
-      };
+      });
 
-      addFace(result.extrudedFace);
-      result.sideFaces.forEach(f => addFace(f));
+      const sideGeometry = new THREE.BufferGeometry();
+      sideGeometry.setAttribute('position', new THREE.Float32BufferAttribute(sidePositions, 3));
+      sideGeometry.setIndex(sideIndices);
+      sideGeometry.computeVertexNormals();
 
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setIndex(indices);
-      geometry.computeVertexNormals();
+      const sideMesh = new THREE.Mesh(sideGeometry, this.sideMaterial);
+      this.sceneManager.add(sideMesh);
+      this.previewMeshes.push(sideMesh);
 
-      const previewMesh = new THREE.Mesh(geometry, this.previewMaterial);
-      this.sceneManager.add(previewMesh);
-      this.previewMeshes.push(previewMesh);
+      // Build wireframe for all edges
+      const wireframePositions = [];
+
+      // Front face edges
+      const frontVerts = result.extrudedFace.vertices;
+      for (let i = 0; i < frontVerts.length; i++) {
+        const next = (i + 1) % frontVerts.length;
+        wireframePositions.push(
+          frontVerts[i].x, frontVerts[i].y, frontVerts[i].z,
+          frontVerts[next].x, frontVerts[next].y, frontVerts[next].z
+        );
+      }
+
+      // Side edges (connecting original to extruded)
+      const origVerts = face.vertices;
+      for (let i = 0; i < origVerts.length; i++) {
+        wireframePositions.push(
+          origVerts[i].x, origVerts[i].y, origVerts[i].z,
+          frontVerts[i].x, frontVerts[i].y, frontVerts[i].z
+        );
+      }
+
+      const wireframeGeometry = new THREE.BufferGeometry();
+      wireframeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(wireframePositions, 3));
+
+      const wireframe = new THREE.LineSegments(wireframeGeometry, this.wireframeMaterial);
+      wireframe.renderOrder = 2;  // Render on top
+      this.sceneManager.add(wireframe);
+      this.previewWireframes.push(wireframe);
     });
   }
 
@@ -265,10 +326,18 @@ export class ExtrudeTool {
       mesh.geometry.dispose();
     });
     this.previewMeshes = [];
+
+    this.previewWireframes.forEach(wireframe => {
+      this.sceneManager.remove(wireframe);
+      wireframe.geometry.dispose();
+    });
+    this.previewWireframes = [];
   }
 
   dispose() {
     this.deactivate();
-    this.previewMaterial.dispose();
+    this.sideMaterial.dispose();
+    this.frontMaterial.dispose();
+    this.wireframeMaterial.dispose();
   }
 }
