@@ -208,6 +208,23 @@ class App {
       }
     });
 
+    // Global wheel event forwarding - allows zooming in all modes
+    // Forward wheel events from overlay canvas to 3D canvas
+    this.overlayCanvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const wheelEvent = new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        deltaZ: e.deltaZ,
+        deltaMode: e.deltaMode
+      });
+      this.canvas.dispatchEvent(wheelEvent);
+    }, { passive: false });
+
     // Initial UI update
     this.updateUI();
     this.renderRecentImages();
@@ -883,11 +900,13 @@ class App {
 
     // Show skip button to clear selection when faces are selected
     if (this.selectedFaces.length > 0) {
-      this.showCancelButton(() => {
+      this.pendingCancelAction = () => {
         this.selectTool.clearSelection();
-      });
+      };
+      this.showSkipButton();
     } else {
-      this.hideCancelButton();
+      this.pendingCancelAction = null;
+      this.hideSkipButton();
     }
 
     if (faces && faces.length > 0) {

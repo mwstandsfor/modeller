@@ -364,6 +364,9 @@ export class CutOverlay {
     // Use window for pointerup to catch it even when pointer events are disabled on overlay
     window.addEventListener('pointerup', this.handlePointerUp);
 
+    // Enable controls for zooming (wheel events forwarded globally from main.js)
+    this.sceneManager.setControlsEnabled(true);
+
     this.reset();
     this.draw();
   }

@@ -57,6 +57,9 @@ export class PerspectiveOverlay {
     this.canvas.addEventListener('pointerup', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
 
+    // Enable controls for zooming (wheel events forwarded globally from main.js)
+    this.sceneManager.setControlsEnabled(true);
+
     // Reset state
     this.points = [];
     this.isDragging = false;
