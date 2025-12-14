@@ -2,45 +2,82 @@ import * as THREE from 'three';
 import { Face } from './face.js';
 
 /**
- * Inset a face - creates a smaller face inside with connecting side faces
+ * Inset a face with relative offset - uniform distance from each edge
+ * regardless of face aspect ratio (like Blender's "Offset Relative")
  *
  * @param {Face} face - Face to inset
- * @param {number} thickness - Inset amount (0-1, where 1 would collapse to center)
+ * @param {number} distance - Inset distance (absolute, same for all edges)
  * @param {number} nextFaceId - Starting ID for new faces
  * @returns {{insetFace: Face, sideFaces: Face[], nextFaceId: number}}
  */
-export function insetFace(face, thickness, nextFaceId) {
-  // Clamp thickness to valid range
-  thickness = Math.max(0.01, Math.min(0.99, thickness));
+export function insetFace(face, distance, nextFaceId) {
+  const n = face.vertices.length;
+  const normal = face.normal;
 
-  // Calculate the center of the face
-  const center = new THREE.Vector3();
-  face.vertices.forEach(v => center.add(v));
-  center.divideScalar(face.vertices.length);
+  // Calculate edge vectors and inward-facing normals for each edge
+  const edgeNormals = [];
+  for (let i = 0; i < n; i++) {
+    const nextI = (i + 1) % n;
+    const edge = new THREE.Vector3().subVectors(face.vertices[nextI], face.vertices[i]);
 
-  // Calculate UV center
+    // Inward normal is cross product of face normal and edge direction
+    const inwardNormal = new THREE.Vector3().crossVectors(normal, edge).normalize();
+    edgeNormals.push(inwardNormal);
+  }
+
+  // Calculate inset vertices using bisector method for uniform edge distance
+  const insetVertices = face.vertices.map((v, i) => {
+    const prevI = (i - 1 + n) % n;
+
+    // Get the two edge normals adjacent to this vertex
+    const normal1 = edgeNormals[prevI];  // Edge ending at this vertex
+    const normal2 = edgeNormals[i];       // Edge starting at this vertex
+
+    // Bisector direction (sum of the two inward normals)
+    const bisector = new THREE.Vector3().addVectors(normal1, normal2);
+    const bisectorLength = bisector.length();
+
+    if (bisectorLength < 0.001) {
+      // Edges are nearly parallel, just use one normal
+      return v.clone().add(normal1.clone().multiplyScalar(distance));
+    }
+
+    // Scale factor for uniform perpendicular distance:
+    // |n1 + n2| = 2 * cos(angle/2), so to get distance d from each edge,
+    // we need to move by d / cos(angle/2) = d * 2 / |n1 + n2|
+    const scale = distance * 2 / bisectorLength;
+
+    bisector.normalize();
+    return v.clone().add(bisector.multiplyScalar(scale));
+  });
+
+  // Calculate UV center for UV interpolation
   const uvCenter = new THREE.Vector2();
   face.uvs.forEach(uv => uvCenter.add(uv));
-  uvCenter.divideScalar(face.uvs.length);
+  uvCenter.divideScalar(n);
 
-  // Create inset vertices by moving each vertex toward the center
-  const insetVertices = face.vertices.map(v => {
-    const direction = new THREE.Vector3().subVectors(center, v);
-    return v.clone().add(direction.multiplyScalar(thickness));
-  });
+  // Calculate average edge length for UV scaling
+  let totalEdgeLength = 0;
+  for (let i = 0; i < n; i++) {
+    const nextI = (i + 1) % n;
+    totalEdgeLength += face.vertices[i].distanceTo(face.vertices[nextI]);
+  }
+  const avgEdgeLength = totalEdgeLength / n;
+
+  // UV inset ratio based on distance relative to average edge length
+  const uvInsetRatio = Math.min(0.99, distance / (avgEdgeLength * 0.5));
 
   // Create inset UVs
   const insetUVs = face.uvs.map(uv => {
     const direction = new THREE.Vector2().subVectors(uvCenter, uv);
-    return uv.clone().add(direction.multiplyScalar(thickness));
+    return uv.clone().add(direction.multiplyScalar(uvInsetRatio));
   });
 
   // Create the inset face (center face)
-  const insetFace = new Face(nextFaceId++, insetVertices, insetUVs);
+  const insetFaceResult = new Face(nextFaceId++, insetVertices, insetUVs);
 
   // Create side faces connecting outer edges to inner edges
   const sideFaces = [];
-  const n = face.vertices.length;
 
   for (let i = 0; i < n; i++) {
     const nextI = (i + 1) % n;
@@ -64,7 +101,7 @@ export function insetFace(face, thickness, nextFaceId) {
   }
 
   return {
-    insetFace,
+    insetFace: insetFaceResult,
     sideFaces,
     nextFaceId
   };
@@ -131,8 +168,8 @@ export class InsetTool {
     this.onInsetComplete = null;
     this.onFaceSelected = null;  // Called when face is tapped
 
-    // Sensitivity (pixels to thickness ratio)
-    this.sensitivity = 0.003;
+    // Max inset distance (calculated dynamically based on face size)
+    this.maxInsetDistance = 0;
 
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -319,14 +356,43 @@ export class InsetTool {
       }
       // Hide gizmo during drag
       this.removeGizmo();
+
+      // Calculate max safe inset distance based on shortest edge across all selected faces
+      this.maxInsetDistance = this.calculateMaxInsetDistance();
     }
 
     if (this.isDragging) {
-      // Drag right = more inset
+      // Drag right = more inset, scaled by face size
       const dragDelta = e.clientX - this.startX;
-      this.currentThickness = Math.max(0.01, Math.min(0.8, dragDelta * this.sensitivity));
+      // Max inset at ~200px drag, minimum at very small drag
+      const maxDragPixels = 200;
+      const normalizedDrag = Math.max(0, dragDelta / maxDragPixels);
+      // Use 90% of max safe distance to avoid edge cases
+      this.currentThickness = Math.min(normalizedDrag, 0.95) * this.maxInsetDistance * 0.9;
       this.updatePreview();
     }
+  }
+
+  /**
+   * Calculate maximum safe inset distance based on face geometry
+   * Returns roughly half of the shortest edge (safe inset limit)
+   */
+  calculateMaxInsetDistance() {
+    let minEdgeLength = Infinity;
+
+    this.selectedFaces.forEach(face => {
+      const n = face.vertices.length;
+      for (let i = 0; i < n; i++) {
+        const nextI = (i + 1) % n;
+        const edgeLength = face.vertices[i].distanceTo(face.vertices[nextI]);
+        if (edgeLength < minEdgeLength) {
+          minEdgeLength = edgeLength;
+        }
+      }
+    });
+
+    // Safe max is about half the shortest edge
+    return minEdgeLength * 0.5;
   }
 
   handlePointerUp(e) {
@@ -335,7 +401,9 @@ export class InsetTool {
     this.isInsetting = false;
     this.sceneManager.setControlsEnabled(true);
 
-    if (this.isDragging && this.currentThickness > 0.02) {
+    // Check if meaningful inset occurred (at least 5% of max)
+    const minThreshold = (this.maxInsetDistance || 0.1) * 0.05;
+    if (this.isDragging && this.currentThickness > minThreshold) {
       // Execute inset immediately on release
       if (this.onInsetComplete) {
         this.onInsetComplete([...this.selectedFaces], this.currentThickness);
