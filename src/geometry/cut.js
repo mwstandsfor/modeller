@@ -535,21 +535,22 @@ export class CutOverlay {
     if (!this.startPoint) return;
 
     // We have a start point and clicked on an edge - check if it's a valid second point
-    if (this.hoverPoint && this.hoverFace && this.startFace) {
-      const isValidCut = this.hoverEdge && 
-        this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
+    // Use the freshly computed result instead of hover state
+    const clickedEdge = result.edge;
 
-      if (isValidCut) {
-        // Store the cut data
-        this.pendingCut = {
-          startPoint: this.startEdge.point,
-          endPoint: this.hoverEdge.point
-        };
+    const isValidCut = clickedEdge &&
+      clickedEdge.edge.startIndex !== this.startEdge.edge.startIndex;
 
-        // Show approval button
-        if (this.onReady) {
-          this.onReady();
-        }
+    if (isValidCut) {
+      // Store the cut data
+      this.pendingCut = {
+        startPoint: this.startEdge.point,
+        endPoint: clickedEdge.point
+      };
+
+      // Show approval button
+      if (this.onReady) {
+        this.onReady();
       }
     }
   }
