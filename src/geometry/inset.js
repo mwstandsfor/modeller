@@ -313,6 +313,10 @@ export class InsetTool {
     // Check if drag threshold exceeded
     if (!this.isDragging && (deltaX > this.dragThreshold || deltaY > this.dragThreshold)) {
       this.isDragging = true;
+      // Hide selection highlight immediately to prevent z-fighting with preview
+      if (this.selectTool) {
+        this.selectTool.hideHighlight();
+      }
       // Hide gizmo during drag
       this.removeGizmo();
     }
