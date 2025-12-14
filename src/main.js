@@ -710,6 +710,10 @@ class App {
           this.extrudeTool.setMesh(this.editableMesh);
           this.extrudeTool.setSelectedFaces(this.selectedFaces);
           this.extrudeTool.activate(this.canvas);
+          // Show selection highlight so user knows which faces are selected
+          this.selectTool.setMesh(this.editableMesh);
+          this.selectTool.selectedFaces = this.selectedFaces;
+          this.selectTool.updateHighlight();
         }
         break;
       case Modes.INSET:
@@ -717,6 +721,10 @@ class App {
           this.insetTool.setMesh(this.editableMesh);
           this.insetTool.setSelectedFaces(this.selectedFaces);
           this.insetTool.activate(this.canvas);
+          // Show selection highlight so user knows which faces are selected
+          this.selectTool.setMesh(this.editableMesh);
+          this.selectTool.selectedFaces = this.selectedFaces;
+          this.selectTool.updateHighlight();
         }
         break;
     }
