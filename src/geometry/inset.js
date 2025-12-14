@@ -126,6 +126,10 @@ export class InsetTool {
     this.currentThickness = 0;
     this.dragThreshold = 5;  // pixels before drag starts
 
+    // Individual mode: when true, each face is inset independently
+    // when false (default), faces are inset as a region together
+    this.individualMode = false;
+
     // Preview meshes for inset
     this.previewMeshes = [];
     this.previewWireframes = [];
@@ -167,6 +171,7 @@ export class InsetTool {
     // Callbacks
     this.onInsetComplete = null;
     this.onFaceSelected = null;  // Called when face is tapped
+    this.onModeToggle = null;    // Called when individual mode is toggled
 
     // Max inset distance (calculated dynamically based on face size)
     this.maxInsetDistance = 0;
@@ -185,6 +190,31 @@ export class InsetTool {
     this.removeGizmo();
     if (this.selectedFaces.length > 0) {
       this.createGizmo();
+    }
+  }
+
+  /**
+   * Toggle between individual and region inset modes
+   * @returns {boolean} The new mode state (true = individual)
+   */
+  toggleIndividualMode() {
+    this.individualMode = !this.individualMode;
+    if (this.onModeToggle) {
+      this.onModeToggle(this.individualMode);
+    }
+    return this.individualMode;
+  }
+
+  /**
+   * Set individual mode directly
+   * @param {boolean} individual - Whether to use individual mode
+   */
+  setIndividualMode(individual) {
+    if (this.individualMode !== individual) {
+      this.individualMode = individual;
+      if (this.onModeToggle) {
+        this.onModeToggle(this.individualMode);
+      }
     }
   }
 
@@ -406,7 +436,7 @@ export class InsetTool {
     if (this.isDragging && this.currentThickness > minThreshold) {
       // Execute inset immediately on release
       if (this.onInsetComplete) {
-        this.onInsetComplete([...this.selectedFaces], this.currentThickness);
+        this.onInsetComplete([...this.selectedFaces], this.currentThickness, this.individualMode);
       }
       this.removePreview();
       // Gizmo will be recreated when selection is updated after inset

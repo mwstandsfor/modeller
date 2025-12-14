@@ -100,7 +100,7 @@ class App {
     };
 
     this.insetTool = new InsetTool(this.scene, this.selectTool);
-    this.insetTool.onInsetComplete = (faces, thickness) => this.onInsetComplete(faces, thickness);
+    this.insetTool.onInsetComplete = (faces, thickness, individualMode) => this.onInsetComplete(faces, thickness, individualMode);
     this.insetTool.onFaceSelected = (faces) => {
       this.selectedFaces = faces;
       this.updateUI();
@@ -959,9 +959,12 @@ class App {
 
   /**
    * Handle inset complete (multi-select)
+   * @param {Face[]} faces - Selected faces to inset
+   * @param {number} thickness - Inset distance
+   * @param {boolean} individualMode - If true, inset each face independently; if false, inset as region
    */
-  onInsetComplete(faces, thickness) {
-    console.log('Inset:', faces.map(f => f.id).join(', '), 'thickness:', thickness);
+  onInsetComplete(faces, thickness, individualMode = true) {
+    console.log('Inset:', faces.map(f => f.id).join(', '), 'thickness:', thickness, 'individual:', individualMode);
 
     // Save state for undo
     this.history.pushState(this.getSerializableState(), 'Inset faces');

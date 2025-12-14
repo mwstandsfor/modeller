@@ -33,6 +33,15 @@ export class Toolbar {
       { btn: this.btnInset, mode: Modes.INSET }
     ];
 
+    // Double-tap detection for tool mode toggle
+    this.lastTapTime = {};
+    this.doubleTapDelay = 300; // ms
+
+    // Tool mode states (for tools with alternate modes)
+    this.toolModes = {
+      inset: false  // false = region, true = individual
+    };
+
     this.setupEventListeners();
   }
 
@@ -57,9 +66,21 @@ export class Toolbar {
       this.app.exportOBJ();
     });
 
-    // Tool buttons
+    // Tool buttons with double-tap detection for mode toggle
     this.toolButtons.forEach(({ btn, mode }) => {
       btn.addEventListener('click', () => {
+        const now = Date.now();
+        const lastTap = this.lastTapTime[mode] || 0;
+        const isDoubleTap = (now - lastTap) < this.doubleTapDelay;
+        this.lastTapTime[mode] = now;
+
+        // Handle double-tap for tools with alternate modes
+        if (mode === Modes.INSET && isDoubleTap) {
+          // Toggle inset individual mode
+          this.toggleInsetMode();
+          return;
+        }
+
         this.app.setMode(mode);
       });
     });
@@ -72,6 +93,30 @@ export class Toolbar {
     this.btnRedo.addEventListener('click', () => {
       this.app.redo();
     });
+  }
+
+  /**
+   * Toggle inset tool individual mode
+   */
+  toggleInsetMode() {
+    this.toolModes.inset = !this.toolModes.inset;
+
+    // Update the button visual
+    this.btnInset.classList.toggle('mode-alternate', this.toolModes.inset);
+
+    // Notify the app/inset tool
+    if (this.app.insetTool) {
+      this.app.insetTool.setIndividualMode(this.toolModes.inset);
+    }
+  }
+
+  /**
+   * Set inset mode directly (for keyboard shortcut sync)
+   * @param {boolean} individual - Whether individual mode is enabled
+   */
+  setInsetMode(individual) {
+    this.toolModes.inset = individual;
+    this.btnInset.classList.toggle('mode-alternate', individual);
   }
 
   /**
@@ -100,6 +145,11 @@ export class Toolbar {
     this.toolButtons.forEach(({ btn, mode }) => {
       btn.classList.toggle('active', currentMode === mode);
     });
+
+    // Maintain mode-alternate class for inset button when active
+    if (currentMode === Modes.INSET) {
+      this.btnInset.classList.toggle('mode-alternate', this.toolModes.inset);
+    }
 
     // Update instructions
     if (state.instructions) {

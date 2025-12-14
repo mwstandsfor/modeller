@@ -39,6 +39,10 @@ export class ShortcutsManager {
     this.listeningAction = null;
     this.overlay = null;
 
+    // Double-tap detection for keyboard shortcuts
+    this.lastKeyTime = {};
+    this.doubleTapDelay = 300; // ms
+
     this.createOverlay();
     this.setupKeyboardHandler();
   }
@@ -361,9 +365,31 @@ export class ShortcutsManager {
     for (const [action, config] of Object.entries(this.shortcuts)) {
       if (config.key === key && !!config.ctrl === ctrl) {
         e.preventDefault();
+
+        // Check for double-tap on actions with alternate modes
+        const now = Date.now();
+        const lastTap = this.lastKeyTime[action] || 0;
+        const isDoubleTap = (now - lastTap) < this.doubleTapDelay;
+        this.lastKeyTime[action] = now;
+
+        // Handle double-tap for inset to toggle individual mode
+        if (action === 'inset' && isDoubleTap) {
+          this.toggleInsetMode();
+          return;
+        }
+
         this.executeAction(action);
         return;
       }
+    }
+  }
+
+  /**
+   * Toggle inset individual mode via keyboard double-tap
+   */
+  toggleInsetMode() {
+    if (this.app.toolbar) {
+      this.app.toolbar.toggleInsetMode();
     }
   }
 
