@@ -12,7 +12,7 @@ import { perspectiveTransform, isOpenCVReady, waitForOpenCV } from './perspectiv
 import { CutOverlay, sliceMesh } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
 import { ExtrudeTool, extrudeFace, extrudeFaces } from './geometry/extrude.js';
-import { InsetTool, insetFace } from './geometry/inset.js';
+import { InsetTool, insetFace, insetFaces } from './geometry/inset.js';
 import { downloadOBJ } from './export/obj.js';
 
 /**
@@ -963,47 +963,61 @@ class App {
    * @param {number} thickness - Inset distance
    * @param {boolean} individualMode - If true, inset each face independently; if false, inset as region
    */
-  onInsetComplete(faces, thickness, individualMode = true) {
+  onInsetComplete(faces, thickness, individualMode = false) {
     console.log('Inset:', faces.map(f => f.id).join(', '), 'thickness:', thickness, 'individual:', individualMode);
 
     // Save state for undo
     this.history.pushState(this.getSerializableState(), 'Inset faces');
 
-    const insetFaces = [];
+    const newInsetFaces = [];
 
-    // Perform inset for each selected face
+    // Remove all original faces first
     faces.forEach(face => {
-      const result = insetFace(face, thickness, this.editableMesh.nextFaceId);
-
-      // Remove original face
       const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
       if (faceIndex >= 0) {
         this.editableMesh.faces.splice(faceIndex, 1);
       }
+    });
 
-      // Add inset face and side faces
-      this.editableMesh.faces.push(result.insetFace);
+    if (individualMode) {
+      // Individual mode: inset each face separately (all edges get side faces)
+      faces.forEach(face => {
+        const result = insetFace(face, thickness, this.editableMesh.nextFaceId);
+
+        // Add inset face and side faces
+        this.editableMesh.faces.push(result.insetFace);
+        result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
+        this.editableMesh.nextFaceId = result.nextFaceId;
+
+        newInsetFaces.push(result.insetFace);
+      });
+    } else {
+      // Region mode: inset faces together (shared edges don't get side faces)
+      const result = insetFaces(faces, thickness, this.editableMesh.nextFaceId);
+
+      // Add all inset faces and side faces
+      result.insetFaces.forEach(f => this.editableMesh.faces.push(f));
       result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
       this.editableMesh.nextFaceId = result.nextFaceId;
 
-      insetFaces.push(result.insetFace);
-    });
+      newInsetFaces.push(...result.insetFaces);
+    }
 
     // Rebuild mesh
     this.editableMesh.rebuildMesh();
 
     // Update selection to inset faces (the center faces)
-    this.selectedFaces = insetFaces;
+    this.selectedFaces = newInsetFaces;
     this.selectTool.setMesh(this.editableMesh);
     // Select all inset faces
-    insetFaces.forEach((face, i) => {
+    newInsetFaces.forEach((face, i) => {
       if (i === 0) {
         this.selectTool.selectFace(face);
       } else {
         this.selectTool.toggleFaceSelection(face);
       }
     });
-    this.insetTool.setSelectedFaces(insetFaces);
+    this.insetTool.setSelectedFaces(newInsetFaces);
 
     this.updateUI();
 

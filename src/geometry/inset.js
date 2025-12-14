@@ -2,6 +2,20 @@ import * as THREE from 'three';
 import { Face } from './face.js';
 
 /**
+ * Create a canonical edge key for comparison (order-independent)
+ * @param {THREE.Vector3} v1
+ * @param {THREE.Vector3} v2
+ * @returns {string}
+ */
+function edgeKey(v1, v2) {
+  const precision = 1000000;
+  const p1 = `${Math.round(v1.x * precision)},${Math.round(v1.y * precision)},${Math.round(v1.z * precision)}`;
+  const p2 = `${Math.round(v2.x * precision)},${Math.round(v2.y * precision)},${Math.round(v2.z * precision)}`;
+  // Sort to make order-independent
+  return p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
+}
+
+/**
  * Inset a face with relative offset - uniform distance from each edge
  * regardless of face aspect ratio (like Blender's "Offset Relative")
  *
@@ -103,6 +117,133 @@ export function insetFace(face, distance, nextFaceId) {
   return {
     insetFace: insetFaceResult,
     sideFaces,
+    nextFaceId
+  };
+}
+
+/**
+ * Inset multiple faces together as a region (like Blender's default inset)
+ * Only creates side faces along the outer perimeter - shared edges don't get side faces
+ *
+ * @param {Face[]} faces - Faces to inset
+ * @param {number} distance - Inset distance (absolute, same for all edges)
+ * @param {number} nextFaceId - Starting ID for new faces
+ * @returns {{insetFaces: Face[], sideFaces: Face[], nextFaceId: number}}
+ */
+export function insetFaces(faces, distance, nextFaceId) {
+  if (faces.length === 0) {
+    return { insetFaces: [], sideFaces: [], nextFaceId };
+  }
+
+  // Count edge occurrences across all faces to find perimeter edges
+  const edgeCounts = new Map();
+
+  faces.forEach(face => {
+    const n = face.vertices.length;
+    for (let i = 0; i < n; i++) {
+      const nextI = (i + 1) % n;
+      const key = edgeKey(face.vertices[i], face.vertices[nextI]);
+      edgeCounts.set(key, (edgeCounts.get(key) || 0) + 1);
+    }
+  });
+
+  // Process each face and compute inset vertices
+  const insetFacesResult = [];
+  const allSideFaces = [];
+
+  // Map to track inset vertices by original vertex position (for shared vertices)
+  const insetVertexMap = new Map();
+
+  faces.forEach(face => {
+    const n = face.vertices.length;
+    const normal = face.normal;
+
+    // Calculate edge vectors and inward-facing normals for each edge
+    const edgeNormals = [];
+    for (let i = 0; i < n; i++) {
+      const nextI = (i + 1) % n;
+      const edge = new THREE.Vector3().subVectors(face.vertices[nextI], face.vertices[i]);
+      const inwardNormal = new THREE.Vector3().crossVectors(normal, edge).normalize();
+      edgeNormals.push(inwardNormal);
+    }
+
+    // Calculate inset vertices using bisector method
+    const insetVertices = face.vertices.map((v, i) => {
+      const vKey = `${Math.round(v.x * 1000000)},${Math.round(v.y * 1000000)},${Math.round(v.z * 1000000)}`;
+
+      // Check if we already computed an inset vertex for this position
+      if (insetVertexMap.has(vKey)) {
+        return insetVertexMap.get(vKey).clone();
+      }
+
+      const prevI = (i - 1 + n) % n;
+      const normal1 = edgeNormals[prevI];
+      const normal2 = edgeNormals[i];
+
+      const bisector = new THREE.Vector3().addVectors(normal1, normal2);
+      const bisectorLength = bisector.length();
+
+      let insetV;
+      if (bisectorLength < 0.001) {
+        insetV = v.clone().add(normal1.clone().multiplyScalar(distance));
+      } else {
+        const scale = distance * 2 / bisectorLength;
+        bisector.normalize();
+        insetV = v.clone().add(bisector.multiplyScalar(scale));
+      }
+
+      insetVertexMap.set(vKey, insetV);
+      return insetV.clone();
+    });
+
+    // Calculate UV center and inset UVs
+    const uvCenter = new THREE.Vector2();
+    face.uvs.forEach(uv => uvCenter.add(uv));
+    uvCenter.divideScalar(n);
+
+    let totalEdgeLength = 0;
+    for (let i = 0; i < n; i++) {
+      const nextI = (i + 1) % n;
+      totalEdgeLength += face.vertices[i].distanceTo(face.vertices[nextI]);
+    }
+    const avgEdgeLength = totalEdgeLength / n;
+    const uvInsetRatio = Math.min(0.99, distance / (avgEdgeLength * 0.5));
+
+    const insetUVs = face.uvs.map(uv => {
+      const direction = new THREE.Vector2().subVectors(uvCenter, uv);
+      return uv.clone().add(direction.multiplyScalar(uvInsetRatio));
+    });
+
+    // Create the inset face
+    const insetFaceResult = new Face(nextFaceId++, insetVertices, insetUVs);
+    insetFacesResult.push(insetFaceResult);
+
+    // Create side faces only for perimeter edges (edges that appear once)
+    for (let i = 0; i < n; i++) {
+      const nextI = (i + 1) % n;
+      const key = edgeKey(face.vertices[i], face.vertices[nextI]);
+
+      // Only create side face if edge is on the perimeter (appears once)
+      if (edgeCounts.get(key) === 1) {
+        const v0 = face.vertices[i].clone();
+        const v1 = face.vertices[nextI].clone();
+        const v2 = insetVertices[nextI].clone();
+        const v3 = insetVertices[i].clone();
+
+        const uv0 = face.uvs[i].clone();
+        const uv1 = face.uvs[nextI].clone();
+        const uv2 = insetUVs[nextI].clone();
+        const uv3 = insetUVs[i].clone();
+
+        const sideFace = new Face(nextFaceId++, [v0, v1, v2, v3], [uv0, uv1, uv2, uv3]);
+        allSideFaces.push(sideFace);
+      }
+    }
+  });
+
+  return {
+    insetFaces: insetFacesResult,
+    sideFaces: allSideFaces,
     nextFaceId
   };
 }
@@ -477,46 +618,75 @@ export class InsetTool {
       this.isPreviewVisible = true;
     }
 
-    // Create preview geometry for each selected face
-    this.selectedFaces.forEach(face => {
-      const result = insetFace(face, this.currentThickness, 0);
+    // Calculate average normal for z-fighting offset
+    const avgNormal = new THREE.Vector3();
+    this.selectedFaces.forEach(face => avgNormal.add(face.normal));
+    avgNormal.normalize();
+    const normalOffset = avgNormal.clone().multiplyScalar(0.001);
 
-      // Small offset along normal to prevent z-fighting with original face
-      const normalOffset = face.normal.clone().multiplyScalar(0.001);
-
-      // Build center inset face mesh (more opaque)
-      const centerPositions = [];
-      const centerIndices = [];
-
-      result.insetFace.vertices.forEach(v => {
-        // Offset slightly along normal
-        centerPositions.push(
-          v.x + normalOffset.x,
-          v.y + normalOffset.y,
-          v.z + normalOffset.z
-        );
+    if (this.individualMode) {
+      // Individual mode: inset each face separately
+      this.selectedFaces.forEach(face => {
+        const result = insetFace(face, this.currentThickness, 0);
+        this.createPreviewForResult(result.insetFace, result.sideFaces, face, normalOffset);
       });
-      for (let i = 1; i < result.insetFace.vertices.length - 1; i++) {
-        centerIndices.push(0, i, i + 1);
+    } else {
+      // Region mode: inset all faces together (shared edges don't get side faces)
+      const result = insetFaces(this.selectedFaces, this.currentThickness, 0);
+
+      // Create preview for each inset face
+      result.insetFaces.forEach((insetFaceResult, idx) => {
+        const originalFace = this.selectedFaces[idx];
+        // For region mode, we pass null for sideFaces per-face since they're combined
+        this.createPreviewForResult(insetFaceResult, [], originalFace, normalOffset);
+      });
+
+      // Create combined side faces preview (only perimeter edges)
+      if (result.sideFaces.length > 0) {
+        this.createSideFacesPreview(result.sideFaces, normalOffset);
       }
 
-      const centerGeometry = new THREE.BufferGeometry();
-      centerGeometry.setAttribute('position', new THREE.Float32BufferAttribute(centerPositions, 3));
-      centerGeometry.setIndex(centerIndices);
-      centerGeometry.computeVertexNormals();
+      // Create wireframe for region mode (show all inset face edges and perimeter connections)
+      this.createRegionWireframe(result, normalOffset);
+    }
+  }
 
-      const centerMesh = new THREE.Mesh(centerGeometry, this.centerMaterial);
-      this.sceneManager.add(centerMesh);
-      this.previewMeshes.push(centerMesh);
+  /**
+   * Create preview meshes for a single inset result
+   */
+  createPreviewForResult(insetFaceResult, sideFaces, originalFace, normalOffset) {
+    // Build center inset face mesh (more opaque)
+    const centerPositions = [];
+    const centerIndices = [];
 
-      // Build side faces mesh (semi-transparent)
+    insetFaceResult.vertices.forEach(v => {
+      centerPositions.push(
+        v.x + normalOffset.x,
+        v.y + normalOffset.y,
+        v.z + normalOffset.z
+      );
+    });
+    for (let i = 1; i < insetFaceResult.vertices.length - 1; i++) {
+      centerIndices.push(0, i, i + 1);
+    }
+
+    const centerGeometry = new THREE.BufferGeometry();
+    centerGeometry.setAttribute('position', new THREE.Float32BufferAttribute(centerPositions, 3));
+    centerGeometry.setIndex(centerIndices);
+    centerGeometry.computeVertexNormals();
+
+    const centerMesh = new THREE.Mesh(centerGeometry, this.centerMaterial);
+    this.sceneManager.add(centerMesh);
+    this.previewMeshes.push(centerMesh);
+
+    // Build side faces mesh if provided (individual mode)
+    if (sideFaces.length > 0) {
       const sidePositions = [];
       const sideIndices = [];
 
-      result.sideFaces.forEach(f => {
+      sideFaces.forEach(f => {
         const startIdx = sidePositions.length / 3;
         f.vertices.forEach(v => {
-          // Offset slightly along normal
           sidePositions.push(
             v.x + normalOffset.x,
             v.y + normalOffset.y,
@@ -537,11 +707,11 @@ export class InsetTool {
       this.sceneManager.add(sideMesh);
       this.previewMeshes.push(sideMesh);
 
-      // Build wireframe for all edges
+      // Build wireframe for individual mode
       const wireframePositions = [];
 
-      // Center inset face edges
-      const insetVerts = result.insetFace.vertices;
+      // Inset face edges
+      const insetVerts = insetFaceResult.vertices;
       for (let i = 0; i < insetVerts.length; i++) {
         const next = (i + 1) % insetVerts.length;
         wireframePositions.push(
@@ -555,7 +725,7 @@ export class InsetTool {
       }
 
       // Side edges (connecting outer to inner)
-      const outerVerts = face.vertices;
+      const outerVerts = originalFace.vertices;
       for (let i = 0; i < outerVerts.length; i++) {
         wireframePositions.push(
           outerVerts[i].x + normalOffset.x,
@@ -571,10 +741,87 @@ export class InsetTool {
       wireframeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(wireframePositions, 3));
 
       const wireframe = new THREE.LineSegments(wireframeGeometry, this.wireframeMaterial);
-      wireframe.renderOrder = 2;  // Render on top
+      wireframe.renderOrder = 2;
       this.sceneManager.add(wireframe);
       this.previewWireframes.push(wireframe);
+    }
+  }
+
+  /**
+   * Create side faces preview for region mode (combined perimeter edges)
+   */
+  createSideFacesPreview(sideFaces, normalOffset) {
+    const sidePositions = [];
+    const sideIndices = [];
+
+    sideFaces.forEach(f => {
+      const startIdx = sidePositions.length / 3;
+      f.vertices.forEach(v => {
+        sidePositions.push(
+          v.x + normalOffset.x,
+          v.y + normalOffset.y,
+          v.z + normalOffset.z
+        );
+      });
+      for (let i = 1; i < f.vertices.length - 1; i++) {
+        sideIndices.push(startIdx, startIdx + i, startIdx + i + 1);
+      }
     });
+
+    const sideGeometry = new THREE.BufferGeometry();
+    sideGeometry.setAttribute('position', new THREE.Float32BufferAttribute(sidePositions, 3));
+    sideGeometry.setIndex(sideIndices);
+    sideGeometry.computeVertexNormals();
+
+    const sideMesh = new THREE.Mesh(sideGeometry, this.sideMaterial);
+    this.sceneManager.add(sideMesh);
+    this.previewMeshes.push(sideMesh);
+  }
+
+  /**
+   * Create wireframe for region mode
+   */
+  createRegionWireframe(result, normalOffset) {
+    const wireframePositions = [];
+
+    // All inset face edges
+    result.insetFaces.forEach(insetFaceResult => {
+      const insetVerts = insetFaceResult.vertices;
+      for (let i = 0; i < insetVerts.length; i++) {
+        const next = (i + 1) % insetVerts.length;
+        wireframePositions.push(
+          insetVerts[i].x + normalOffset.x,
+          insetVerts[i].y + normalOffset.y,
+          insetVerts[i].z + normalOffset.z,
+          insetVerts[next].x + normalOffset.x,
+          insetVerts[next].y + normalOffset.y,
+          insetVerts[next].z + normalOffset.z
+        );
+      }
+    });
+
+    // Perimeter side edges (from side faces)
+    result.sideFaces.forEach(sideFace => {
+      // Each side face connects outer edge to inner edge
+      // Draw the connecting edges (v0->v3 and v1->v2)
+      const v = sideFace.vertices;
+      wireframePositions.push(
+        v[0].x + normalOffset.x, v[0].y + normalOffset.y, v[0].z + normalOffset.z,
+        v[3].x + normalOffset.x, v[3].y + normalOffset.y, v[3].z + normalOffset.z
+      );
+      wireframePositions.push(
+        v[1].x + normalOffset.x, v[1].y + normalOffset.y, v[1].z + normalOffset.z,
+        v[2].x + normalOffset.x, v[2].y + normalOffset.y, v[2].z + normalOffset.z
+      );
+    });
+
+    const wireframeGeometry = new THREE.BufferGeometry();
+    wireframeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(wireframePositions, 3));
+
+    const wireframe = new THREE.LineSegments(wireframeGeometry, this.wireframeMaterial);
+    wireframe.renderOrder = 2;
+    this.sceneManager.add(wireframe);
+    this.previewWireframes.push(wireframe);
   }
 
   /**
