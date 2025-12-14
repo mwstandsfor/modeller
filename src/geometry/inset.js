@@ -383,12 +383,20 @@ export class InsetTool {
     this.selectedFaces.forEach(face => {
       const result = insetFace(face, this.currentThickness, 0);
 
+      // Small offset along normal to prevent z-fighting with original face
+      const normalOffset = face.normal.clone().multiplyScalar(0.001);
+
       // Build center inset face mesh (more opaque)
       const centerPositions = [];
       const centerIndices = [];
 
       result.insetFace.vertices.forEach(v => {
-        centerPositions.push(v.x, v.y, v.z);
+        // Offset slightly along normal
+        centerPositions.push(
+          v.x + normalOffset.x,
+          v.y + normalOffset.y,
+          v.z + normalOffset.z
+        );
       });
       for (let i = 1; i < result.insetFace.vertices.length - 1; i++) {
         centerIndices.push(0, i, i + 1);
@@ -410,7 +418,12 @@ export class InsetTool {
       result.sideFaces.forEach(f => {
         const startIdx = sidePositions.length / 3;
         f.vertices.forEach(v => {
-          sidePositions.push(v.x, v.y, v.z);
+          // Offset slightly along normal
+          sidePositions.push(
+            v.x + normalOffset.x,
+            v.y + normalOffset.y,
+            v.z + normalOffset.z
+          );
         });
         for (let i = 1; i < f.vertices.length - 1; i++) {
           sideIndices.push(startIdx, startIdx + i, startIdx + i + 1);
@@ -434,8 +447,12 @@ export class InsetTool {
       for (let i = 0; i < insetVerts.length; i++) {
         const next = (i + 1) % insetVerts.length;
         wireframePositions.push(
-          insetVerts[i].x, insetVerts[i].y, insetVerts[i].z,
-          insetVerts[next].x, insetVerts[next].y, insetVerts[next].z
+          insetVerts[i].x + normalOffset.x,
+          insetVerts[i].y + normalOffset.y,
+          insetVerts[i].z + normalOffset.z,
+          insetVerts[next].x + normalOffset.x,
+          insetVerts[next].y + normalOffset.y,
+          insetVerts[next].z + normalOffset.z
         );
       }
 
@@ -443,8 +460,12 @@ export class InsetTool {
       const outerVerts = face.vertices;
       for (let i = 0; i < outerVerts.length; i++) {
         wireframePositions.push(
-          outerVerts[i].x, outerVerts[i].y, outerVerts[i].z,
-          insetVerts[i].x, insetVerts[i].y, insetVerts[i].z
+          outerVerts[i].x + normalOffset.x,
+          outerVerts[i].y + normalOffset.y,
+          outerVerts[i].z + normalOffset.z,
+          insetVerts[i].x + normalOffset.x,
+          insetVerts[i].y + normalOffset.y,
+          insetVerts[i].z + normalOffset.z
         );
       }
 
