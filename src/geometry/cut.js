@@ -542,11 +542,19 @@ export class CutOverlay {
       clickedEdge.edge.startIndex !== this.startEdge.edge.startIndex;
 
     if (isValidCut) {
+      // Update hover state to show where we clicked
+      this.hoverEdge = clickedEdge;
+      this.hoverFace = result.face;
+      this.hoverPoint = this.worldToScreen(clickedEdge.point);
+
       // Store the cut data
       this.pendingCut = {
         startPoint: this.startEdge.point,
         endPoint: clickedEdge.point
       };
+
+      // Redraw to show the cut line
+      this.draw();
 
       // Show approval button
       if (this.onReady) {
