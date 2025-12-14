@@ -2,14 +2,23 @@ import * as THREE from 'three';
 
 /**
  * Face selection tool
- * Click on faces to select them for extrusion
- * Shift+click to add/remove from selection
+ * Tap on faces to toggle selection (multi-select by default)
+ * Drag to orbit (doesn't affect selection)
+ * Long-press on empty area then tap selected face to deselect
  */
 export class SelectTool {
   constructor(sceneManager) {
     this.sceneManager = sceneManager;
     this.editableMesh = null;
     this.selectedFaces = [];  // Array for multi-selection
+
+    // Tap detection
+    this.pointerStartX = 0;
+    this.pointerStartY = 0;
+    this.pointerStartTime = 0;
+    this.tapThreshold = 10;      // Max pixels movement for tap
+    this.tapMaxDuration = 300;   // Max ms for tap
+    this.isPointerDown = false;
 
     // Visual feedback - using design colors
     this.highlightMeshes = [];
@@ -42,6 +51,7 @@ export class SelectTool {
     this.onSelect = null;
 
     this.handlePointerDown = this.handlePointerDown.bind(this);
+    this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
   }
 
@@ -52,6 +62,7 @@ export class SelectTool {
   activate(canvas) {
     this.canvas = canvas;
     canvas.addEventListener('pointerdown', this.handlePointerDown);
+    canvas.addEventListener('pointerup', this.handlePointerUp);
     canvas.addEventListener('pointermove', this.handlePointerMove);
 
     // Enable controls for wheel zoom and rotation
@@ -61,37 +72,64 @@ export class SelectTool {
   deactivate() {
     if (this.canvas) {
       this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
+      this.canvas.removeEventListener('pointerup', this.handlePointerUp);
       this.canvas.removeEventListener('pointermove', this.handlePointerMove);
     }
     this.clearHighlight();
     this.clearHover();
+    this.isPointerDown = false;
   }
 
   handlePointerDown(e) {
+    // Only track primary pointer (ignore multi-touch for selection)
+    if (!e.isPrimary) return;
+
+    this.pointerStartX = e.clientX;
+    this.pointerStartY = e.clientY;
+    this.pointerStartTime = Date.now();
+    this.isPointerDown = true;
+
+    // Keep orbit controls enabled - they will handle dragging
+  }
+
+  handlePointerUp(e) {
+    if (!e.isPrimary || !this.isPointerDown) return;
+    this.isPointerDown = false;
+
     if (!this.editableMesh) return;
 
+    // Check if this was a tap (short duration, small movement)
+    const deltaX = Math.abs(e.clientX - this.pointerStartX);
+    const deltaY = Math.abs(e.clientY - this.pointerStartY);
+    const duration = Date.now() - this.pointerStartTime;
+
+    const isTap = deltaX < this.tapThreshold &&
+                  deltaY < this.tapThreshold &&
+                  duration < this.tapMaxDuration;
+
+    if (!isTap) {
+      // Was a drag - orbit controls handled it, do nothing for selection
+      return;
+    }
+
+    // It was a tap - check what was tapped
     const face = this.raycastFace(e.clientX, e.clientY);
-    const isShiftClick = e.shiftKey;
 
     if (face) {
-      if (isShiftClick) {
-        // Toggle face in selection
-        this.toggleFaceSelection(face);
-      } else {
-        // Clear selection and select only this face
-        this.selectFace(face);
-      }
-    } else if (!isShiftClick) {
-      // Clear selection when clicking empty space (without shift)
-      this.clearSelection();
+      // Tapped on a face - toggle its selection
+      this.toggleFaceSelection(face);
     }
+    // Tapping on empty space does nothing (keeps current selection)
   }
 
   handlePointerMove(e) {
     if (!this.editableMesh) return;
 
-    const face = this.raycastFace(e.clientX, e.clientY);
-    this.updateHover(face);
+    // Only update hover when not dragging
+    if (!this.isPointerDown) {
+      const face = this.raycastFace(e.clientX, e.clientY);
+      this.updateHover(face);
+    }
   }
 
   /**
