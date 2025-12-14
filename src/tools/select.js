@@ -268,6 +268,30 @@ export class SelectTool {
     this.outlineMeshes = [];
   }
 
+  /**
+   * Temporarily hide selection highlights (without clearing selection)
+   */
+  hideHighlight() {
+    this.highlightMeshes.forEach(mesh => {
+      mesh.visible = false;
+    });
+    this.outlineMeshes.forEach(mesh => {
+      mesh.visible = false;
+    });
+  }
+
+  /**
+   * Show selection highlights again
+   */
+  showHighlight() {
+    this.highlightMeshes.forEach(mesh => {
+      mesh.visible = true;
+    });
+    this.outlineMeshes.forEach(mesh => {
+      mesh.visible = true;
+    });
+  }
+
   updateHover(face) {
     this.clearHover();
 

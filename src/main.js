@@ -11,7 +11,7 @@ import { PerspectiveOverlay } from './perspective/overlay.js';
 import { perspectiveTransform, isOpenCVReady, waitForOpenCV } from './perspective/dewarp.js';
 import { CutOverlay, sliceMesh } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
-import { ExtrudeTool, extrudeFace } from './geometry/extrude.js';
+import { ExtrudeTool, extrudeFace, extrudeFaces } from './geometry/extrude.js';
 import { InsetTool, insetFace } from './geometry/inset.js';
 import { downloadOBJ } from './export/obj.js';
 
@@ -72,9 +72,13 @@ class App {
 
       // 3. Update the mesh
       this.editableMesh.faces = updatedFaces;
+
+      // 4. Update nextFaceId to avoid ID collisions with subsequent operations
+      this.editableMesh.nextFaceId = Math.max(...updatedFaces.map(f => f.id)) + 1;
+
       this.editableMesh.rebuildMesh();
 
-      // 4. Save state for undo
+      // 5. Save state for undo
       this.history.pushState(this.getSerializableState(), 'Cut faces');
     };
     this.cutOverlay.onReady = () => {
@@ -88,24 +92,18 @@ class App {
     this.selectTool = new SelectTool(this.scene);
     this.selectTool.onSelect = (faces) => this.onFacesSelected(faces);
 
-    this.extrudeTool = new ExtrudeTool(this.scene);
+    this.extrudeTool = new ExtrudeTool(this.scene, this.selectTool);
     this.extrudeTool.onExtrudeComplete = (faces, distance) => this.onExtrudeComplete(faces, distance);
-    this.extrudeTool.onReady = () => {
-      this.showApproveButton(
-        () => this.extrudeTool.executePendingExtrusion(),
-        'Extrude',
-        () => this.extrudeTool.cancelPendingExtrusion()
-      );
+    this.extrudeTool.onFaceSelected = (faces) => {
+      this.selectedFaces = faces;
+      this.updateUI();
     };
 
-    this.insetTool = new InsetTool(this.scene);
+    this.insetTool = new InsetTool(this.scene, this.selectTool);
     this.insetTool.onInsetComplete = (faces, thickness) => this.onInsetComplete(faces, thickness);
-    this.insetTool.onReady = () => {
-      this.showApproveButton(
-        () => this.insetTool.executePendingInset(),
-        'Inset',
-        () => this.insetTool.cancelPendingInset()
-      );
+    this.insetTool.onFaceSelected = (faces) => {
+      this.selectedFaces = faces;
+      this.updateUI();
     };
 
     // State
@@ -922,41 +920,37 @@ class App {
     // Save state for undo
     this.history.pushState(this.getSerializableState(), 'Extrude faces');
 
-    const extrudedFaces = [];
+    // Use extrudeFaces for multi-face extrusion (handles shared edges correctly)
+    const result = extrudeFaces(faces, distance, this.editableMesh.nextFaceId);
 
-    // Perform extrusion for each selected face
+    // Remove original faces
     faces.forEach(face => {
-      const result = extrudeFace(face, distance, this.editableMesh.nextFaceId);
-
-      // Remove original face
       const faceIndex = this.editableMesh.faces.findIndex(f => f.id === face.id);
       if (faceIndex >= 0) {
         this.editableMesh.faces.splice(faceIndex, 1);
       }
-
-      // Add extruded face and side faces
-      this.editableMesh.faces.push(result.extrudedFace);
-      result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
-      this.editableMesh.nextFaceId = result.nextFaceId;
-
-      extrudedFaces.push(result.extrudedFace);
     });
+
+    // Add extruded faces and side faces
+    result.extrudedFaces.forEach(f => this.editableMesh.faces.push(f));
+    result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
+    this.editableMesh.nextFaceId = result.nextFaceId;
 
     // Rebuild mesh
     this.editableMesh.rebuildMesh();
 
     // Update selection to extruded faces
-    this.selectedFaces = extrudedFaces;
+    this.selectedFaces = result.extrudedFaces;
     this.selectTool.setMesh(this.editableMesh);
     // Select all extruded faces
-    extrudedFaces.forEach((face, i) => {
+    result.extrudedFaces.forEach((face, i) => {
       if (i === 0) {
         this.selectTool.selectFace(face);
       } else {
         this.selectTool.toggleFaceSelection(face);
       }
     });
-    this.extrudeTool.setSelectedFaces(extrudedFaces);
+    this.extrudeTool.setSelectedFaces(result.extrudedFaces);
 
     this.updateUI();
 

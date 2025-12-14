@@ -72,22 +72,31 @@ export function insetFace(face, thickness, nextFaceId) {
 
 /**
  * Inset tool handler
- * Manages the drag interaction for insetting faces
- * Supports multi-selection
+ * Tap+drag workflow: tap selects face with gizmo, drag insets, release confirms
+ * Supports multi-selection via SelectTool
  */
 export class InsetTool {
-  constructor(sceneManager) {
+  constructor(sceneManager, selectTool = null) {
     this.sceneManager = sceneManager;
+    this.selectTool = selectTool;
     this.editableMesh = null;
     this.selectedFaces = [];  // Array for multi-selection
 
     this.isInsetting = false;
+    this.isDragging = false;
     this.startX = 0;
+    this.startY = 0;
     this.currentThickness = 0;
+    this.dragThreshold = 5;  // pixels before drag starts
 
     // Preview meshes for inset
     this.previewMeshes = [];
     this.previewWireframes = [];
+    this.isPreviewVisible = false;  // Track if preview is showing
+
+    // Normal gizmo
+    this.gizmo = null;
+    this.gizmoLength = 32;  // pixels
 
     // Material for side faces (semi-transparent)
     this.sideMaterial = new THREE.MeshBasicMaterial({
@@ -111,12 +120,16 @@ export class InsetTool {
       linewidth: 2
     });
 
+    // Gizmo material
+    this.gizmoMaterial = new THREE.LineBasicMaterial({
+      color: 0xFF9900,
+      linewidth: 3,
+      depthTest: false
+    });
+
     // Callbacks
     this.onInsetComplete = null;
-    this.onReady = null;
-
-    // Pending inset data
-    this.pendingInset = null;
+    this.onFaceSelected = null;  // Called when face is tapped
 
     // Sensitivity (pixels to thickness ratio)
     this.sensitivity = 0.003;
@@ -132,13 +145,10 @@ export class InsetTool {
 
   setSelectedFaces(faces) {
     this.selectedFaces = faces || [];
-    this.updatePreview();
-  }
-
-  // Legacy support for single face
-  setSelectedFace(face) {
-    this.selectedFaces = face ? [face] : [];
-    this.updatePreview();
+    this.removeGizmo();
+    if (this.selectedFaces.length > 0) {
+      this.createGizmo();
+    }
   }
 
   activate(canvas) {
@@ -150,6 +160,11 @@ export class InsetTool {
 
     // Enable controls for wheel zoom
     this.sceneManager.setControlsEnabled(true);
+
+    // Show gizmo if faces already selected
+    if (this.selectedFaces.length > 0) {
+      this.createGizmo();
+    }
   }
 
   deactivate() {
@@ -160,96 +175,205 @@ export class InsetTool {
       this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
     }
     this.removePreview();
+    this.removeGizmo();
   }
 
-  handlePointerDown(e) {
-    if (this.selectedFaces.length === 0) {
-      // Allow 3D rotation when no face is selected
-      this.sceneManager.setControlsEnabled(true);
-      return;
-    }
+  /**
+   * Create normal gizmo for selected faces (32px orange line)
+   */
+  createGizmo() {
+    this.removeGizmo();
+    if (this.selectedFaces.length === 0) return;
 
-    // Check if clicking on the mesh
-    const ndc = this.sceneManager.screenToNDC(e.clientX, e.clientY);
+    // Calculate center and average normal of selected faces
+    const center = new THREE.Vector3();
+    const avgNormal = new THREE.Vector3();
+
+    this.selectedFaces.forEach(face => {
+      center.add(face.getCenter());
+      avgNormal.add(face.normal);
+    });
+    center.divideScalar(this.selectedFaces.length);
+    avgNormal.normalize();
+
+    // Convert 32px to world space length
+    const worldLength = this.pixelsToWorldLength(center, this.gizmoLength);
+
+    // Create line from center along normal
+    const endPoint = center.clone().add(avgNormal.clone().multiplyScalar(worldLength));
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute([
+      center.x, center.y, center.z,
+      endPoint.x, endPoint.y, endPoint.z
+    ], 3));
+
+    this.gizmo = new THREE.Line(geometry, this.gizmoMaterial);
+    this.gizmo.renderOrder = 1000;
+    this.sceneManager.add(this.gizmo);
+  }
+
+  removeGizmo() {
+    if (this.gizmo) {
+      this.sceneManager.remove(this.gizmo);
+      this.gizmo.geometry.dispose();
+      this.gizmo = null;
+    }
+  }
+
+  /**
+   * Convert pixel length to world space length at a given point
+   */
+  pixelsToWorldLength(worldPoint, pixelLength) {
+    const camera = this.sceneManager.camera;
+
+    // Project point to screen
+    const projected = worldPoint.clone().project(camera);
+
+    // Create offset point in screen space
+    const canvas = this.sceneManager.renderer.domElement;
+    const offsetX = (pixelLength / canvas.clientWidth) * 2;
+
+    // Unproject both points
+    const p1 = new THREE.Vector3(projected.x, projected.y, projected.z).unproject(camera);
+    const p2 = new THREE.Vector3(projected.x + offsetX, projected.y, projected.z).unproject(camera);
+
+    return p1.distanceTo(p2);
+  }
+
+  /**
+   * Find face at screen position
+   */
+  findFaceAtPoint(clientX, clientY) {
+    if (!this.editableMesh) return null;
+
+    const ndc = this.sceneManager.screenToNDC(clientX, clientY);
     const raycaster = this.sceneManager.getRaycaster(ndc.x, ndc.y);
     const intersects = raycaster.intersectObject(this.editableMesh.mesh);
 
-    if (intersects.length === 0) {
+    if (intersects.length === 0) return null;
+
+    const point = intersects[0].point;
+    return this.editableMesh.findFaceAtPoint(point);
+  }
+
+  handlePointerDown(e) {
+    if (!this.editableMesh) return;
+
+    this.startX = e.clientX;
+    this.startY = e.clientY;
+    this.isDragging = false;
+    this.isInsetting = false;
+    this.currentThickness = 0;
+
+    // Find face under cursor
+    const face = this.findFaceAtPoint(e.clientX, e.clientY);
+
+    if (!face) {
       // Clicking on empty space - allow 3D rotation
       this.sceneManager.setControlsEnabled(true);
       return;
     }
 
-    this.isInsetting = true;
-    this.startX = e.clientX;
-    this.currentThickness = 0;
-
-    // Disable orbit controls during drag
+    // Disable orbit controls
     this.sceneManager.setControlsEnabled(false);
+
+    // Check if clicking on already selected face
+    const isAlreadySelected = this.selectedFaces.some(f => f.id === face.id);
+
+    if (!isAlreadySelected) {
+      // Select the new face (single selection in inset mode)
+      this.selectedFaces = [face];
+
+      // Update selection highlight via selectTool
+      if (this.selectTool) {
+        this.selectTool.clearSelection();
+        this.selectTool.selectFace(face);
+      }
+
+      // Notify main app
+      if (this.onFaceSelected) {
+        this.onFaceSelected([face]);
+      }
+
+      // Show gizmo
+      this.createGizmo();
+    }
+
+    // Prepare for potential drag
+    this.isInsetting = true;
   }
 
   handlePointerMove(e) {
     if (!this.isInsetting || this.selectedFaces.length === 0) return;
 
-    // Drag right = more inset
-    const deltaX = e.clientX - this.startX;
-    this.currentThickness = Math.max(0.01, Math.min(0.8, deltaX * this.sensitivity));
+    const deltaX = Math.abs(e.clientX - this.startX);
+    const deltaY = Math.abs(e.clientY - this.startY);
 
-    this.updatePreview();
+    // Check if drag threshold exceeded
+    if (!this.isDragging && (deltaX > this.dragThreshold || deltaY > this.dragThreshold)) {
+      this.isDragging = true;
+      // Hide gizmo during drag
+      this.removeGizmo();
+    }
+
+    if (this.isDragging) {
+      // Drag right = more inset
+      const dragDelta = e.clientX - this.startX;
+      this.currentThickness = Math.max(0.01, Math.min(0.8, dragDelta * this.sensitivity));
+      this.updatePreview();
+    }
   }
 
   handlePointerUp(e) {
     if (!this.isInsetting) return;
 
     this.isInsetting = false;
-
-    // Re-enable orbit controls
     this.sceneManager.setControlsEnabled(true);
 
-    // If we moved enough, store pending and signal ready for approval
-    if (this.currentThickness > 0.02) {
-      this.pendingInset = {
-        faces: [...this.selectedFaces],
-        thickness: this.currentThickness
-      };
-      // Keep the preview visible while waiting for approval
-      if (this.onReady) {
-        this.onReady(this.pendingInset);
+    if (this.isDragging && this.currentThickness > 0.02) {
+      // Execute inset immediately on release
+      if (this.onInsetComplete) {
+        this.onInsetComplete([...this.selectedFaces], this.currentThickness);
       }
-    } else {
-      this.currentThickness = 0;
       this.removePreview();
+      // Gizmo will be recreated when selection is updated after inset
+    } else {
+      // Was just a tap (no significant drag) - keep selection, show gizmo
+      this.removePreview();
+      if (this.selectedFaces.length > 0) {
+        this.createGizmo();
+        // Restore selection highlight
+        if (this.selectTool) {
+          this.selectTool.showHighlight();
+        }
+      }
     }
-  }
 
-  /**
-   * Execute the pending inset
-   */
-  executePendingInset() {
-    if (this.pendingInset && this.onInsetComplete) {
-      this.onInsetComplete(this.pendingInset.faces, this.pendingInset.thickness);
-    }
-    this.pendingInset = null;
+    this.isDragging = false;
     this.currentThickness = 0;
-    this.removePreview();
-  }
-
-  /**
-   * Cancel the pending inset
-   */
-  cancelPendingInset() {
-    this.pendingInset = null;
-    this.currentThickness = 0;
-    this.removePreview();
   }
 
   updatePreview() {
     if (this.selectedFaces.length === 0) return;
 
-    // Remove old previews
-    this.removePreview();
+    // Remove old previews (but don't show selection highlight yet)
+    this.removePreviewMeshes();
 
-    if (this.currentThickness < 0.01) return;
+    if (this.currentThickness < 0.01) {
+      // No preview to show, restore selection highlight
+      if (this.isPreviewVisible && this.selectTool) {
+        this.selectTool.showHighlight();
+        this.isPreviewVisible = false;
+      }
+      return;
+    }
+
+    // Hide selection highlight when showing preview (avoid z-fighting)
+    if (!this.isPreviewVisible && this.selectTool) {
+      this.selectTool.hideHighlight();
+      this.isPreviewVisible = true;
+    }
 
     // Create preview geometry for each selected face
     this.selectedFaces.forEach(face => {
@@ -330,7 +454,10 @@ export class InsetTool {
     });
   }
 
-  removePreview() {
+  /**
+   * Remove preview meshes only (doesn't restore selection highlight)
+   */
+  removePreviewMeshes() {
     this.previewMeshes.forEach(mesh => {
       this.sceneManager.remove(mesh);
       mesh.geometry.dispose();
@@ -344,10 +471,24 @@ export class InsetTool {
     this.previewWireframes = [];
   }
 
+  /**
+   * Remove preview and restore selection highlight
+   */
+  removePreview() {
+    this.removePreviewMeshes();
+
+    // Restore selection highlight
+    if (this.isPreviewVisible && this.selectTool) {
+      this.selectTool.showHighlight();
+      this.isPreviewVisible = false;
+    }
+  }
+
   dispose() {
     this.deactivate();
     this.sideMaterial.dispose();
     this.centerMaterial.dispose();
     this.wireframeMaterial.dispose();
+    this.gizmoMaterial.dispose();
   }
 }
