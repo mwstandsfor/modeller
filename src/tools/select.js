@@ -4,7 +4,7 @@ import * as THREE from 'three';
  * Face selection tool
  * Tap on faces to toggle selection (multi-select by default)
  * Drag to orbit (doesn't affect selection)
- * Long-press on empty area then tap selected face to deselect
+ * Double-tap on empty space to clear selection
  */
 export class SelectTool {
   constructor(sceneManager) {
@@ -19,6 +19,10 @@ export class SelectTool {
     this.tapThreshold = 10;      // Max pixels movement for tap
     this.tapMaxDuration = 300;   // Max ms for tap
     this.isPointerDown = false;
+
+    // Double-tap detection for clearing selection
+    this.lastEmptyTapTime = 0;
+    this.doubleTapDelay = 300;   // Max ms between taps for double-tap
 
     // Visual feedback - using design colors
     this.highlightMeshes = [];
@@ -118,8 +122,20 @@ export class SelectTool {
     if (face) {
       // Tapped on a face - toggle its selection
       this.toggleFaceSelection(face);
+      // Reset empty tap tracking when tapping on a face
+      this.lastEmptyTapTime = 0;
+    } else {
+      // Tapped on empty space - check for double-tap to clear selection
+      const now = Date.now();
+      if (now - this.lastEmptyTapTime < this.doubleTapDelay) {
+        // Double-tap on empty space - clear selection
+        this.clearSelection();
+        this.lastEmptyTapTime = 0;
+      } else {
+        // First tap on empty space - record time
+        this.lastEmptyTapTime = now;
+      }
     }
-    // Tapping on empty space does nothing (keeps current selection)
   }
 
   handlePointerMove(e) {
