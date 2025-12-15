@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Face } from './face.js';
+import { handleFaceSelection } from '../tools/selection.js';
 
 /**
  * Create a canonical edge key for comparison (order-independent)
@@ -486,50 +487,11 @@ export class InsetTool {
     // Disable orbit controls
     this.sceneManager.setControlsEnabled(false);
 
-    // Check if clicking on already selected face
-    const isAlreadySelected = this.selectedFaces.some(f => f.id === face.id);
+    // Handle selection (supports shift-click for multi-select)
+    handleFaceSelection(e, face, this.selectedFaces, this.selectTool, this.onFaceSelected);
 
-    if (e.shiftKey) {
-      // Shift-click: toggle face in selection
-      if (isAlreadySelected) {
-        // Remove from selection
-        this.selectedFaces = this.selectedFaces.filter(f => f.id !== face.id);
-        if (this.selectTool) {
-          this.selectTool.toggleFaceSelection(face);
-        }
-      } else {
-        // Add to selection
-        this.selectedFaces.push(face);
-        if (this.selectTool) {
-          this.selectTool.toggleFaceSelection(face);
-        }
-      }
-
-      // Notify main app
-      if (this.onFaceSelected) {
-        this.onFaceSelected([...this.selectedFaces]);
-      }
-
-      // Update gizmo
-      this.createGizmo();
-    } else if (!isAlreadySelected) {
-      // No shift: replace selection with clicked face
-      this.selectedFaces = [face];
-
-      // Update selection highlight via selectTool
-      if (this.selectTool) {
-        this.selectTool.clearSelection();
-        this.selectTool.selectFace(face);
-      }
-
-      // Notify main app
-      if (this.onFaceSelected) {
-        this.onFaceSelected([face]);
-      }
-
-      // Show gizmo
-      this.createGizmo();
-    }
+    // Update gizmo
+    this.createGizmo();
 
     // Prepare for potential drag
     this.isInsetting = true;
