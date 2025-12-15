@@ -320,10 +320,10 @@ export class CutOverlay {
     this.hoverFace = null;      // Face being hovered
     this.isActive = false;
 
-    // Style
-    this.lineColor = '#9b59b6';       // Purple for cut line
-    this.edgeColor = '#00ffff';       // Cyan for edge highlight
-    this.invalidColor = '#ff4444';    // Red for invalid
+    // Style 
+    this.lineColor = '#ff7f29bd';       // for cut line
+    this.edgeColor = '#ff7f29ff';   //FFC64Cff     // for edge highlight
+    this.invalidColor = '#EA1941';    // Red for invalid
 
     // Callbacks
     this.onCutComplete = null;

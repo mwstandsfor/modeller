@@ -32,7 +32,7 @@ export class SceneManager {
   initCamera() {
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
-    this.camera.position.set(0, 2, 5);
+    this.camera.position.set(0, 0, 5);
     this.camera.lookAt(0, 0, 0);
   }
 
