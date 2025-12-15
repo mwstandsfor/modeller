@@ -706,25 +706,29 @@ class App {
         }
         break;
       case Modes.EXTRUDE:
-        if (this.editableMesh && this.selectedFaces.length > 0) {
+        if (this.editableMesh) {
           this.extrudeTool.setMesh(this.editableMesh);
           this.extrudeTool.setSelectedFaces(this.selectedFaces);
           this.extrudeTool.activate(this.canvas);
-          // Show selection highlight so user knows which faces are selected
-          this.selectTool.setMesh(this.editableMesh);
-          this.selectTool.selectedFaces = this.selectedFaces;
-          this.selectTool.updateHighlight();
+          // Show selection highlight if faces are already selected
+          if (this.selectedFaces.length > 0) {
+            this.selectTool.setMesh(this.editableMesh);
+            this.selectTool.selectedFaces = this.selectedFaces;
+            this.selectTool.updateHighlight();
+          }
         }
         break;
       case Modes.INSET:
-        if (this.editableMesh && this.selectedFaces.length > 0) {
+        if (this.editableMesh) {
           this.insetTool.setMesh(this.editableMesh);
           this.insetTool.setSelectedFaces(this.selectedFaces);
           this.insetTool.activate(this.canvas);
-          // Show selection highlight so user knows which faces are selected
-          this.selectTool.setMesh(this.editableMesh);
-          this.selectTool.selectedFaces = this.selectedFaces;
-          this.selectTool.updateHighlight();
+          // Show selection highlight if faces are already selected
+          if (this.selectedFaces.length > 0) {
+            this.selectTool.setMesh(this.editableMesh);
+            this.selectTool.selectedFaces = this.selectedFaces;
+            this.selectTool.updateHighlight();
+          }
         }
         break;
     }

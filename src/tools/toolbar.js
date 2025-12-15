@@ -132,11 +132,12 @@ export class Toolbar {
     const canRedo = state.canRedo;
 
     // Enable/disable buttons based on state
+    // Extrude and Inset are enabled when mesh exists (can select face on tap)
     this.btnPerspective.disabled = !hasImage;
     this.btnCut.disabled = !hasMesh;
     this.btnSelect.disabled = !hasMesh;
-    this.btnExtrude.disabled = !hasSelection;
-    this.btnInset.disabled = !hasSelection;
+    this.btnExtrude.disabled = !hasMesh;
+    this.btnInset.disabled = !hasMesh;
     this.btnExport.disabled = !hasMesh;
     this.btnUndo.disabled = !canUndo;
     this.btnRedo.disabled = !canRedo;
