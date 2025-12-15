@@ -214,12 +214,13 @@ export class ExtrudeTool {
     this.gizmo = null;
     this.gizmoLength = 32;  // pixels
 
-    // Material for side faces (semi-transparent)
+    // Material for side faces (semi-transparent, always visible for inward extrusion)
     this.sideMaterial = new THREE.MeshBasicMaterial({
       color: 0xB68133,  // Match selection color
       transparent: true,
       opacity: 0.4,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthTest: false
     });
 
     // Material for front face (more opaque to show where new face will be)
@@ -227,13 +228,15 @@ export class ExtrudeTool {
       color: 0xB68133,
       transparent: true,
       opacity: 0.8,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthTest: false
     });
 
     // Wireframe material for preview edges
     this.wireframeMaterial = new THREE.LineBasicMaterial({
       color: 0xFF9900,  // SelectionBorder color
-      linewidth: 2
+      linewidth: 2,
+      depthTest: false
     });
 
     // Gizmo material
