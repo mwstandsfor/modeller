@@ -1,11 +1,14 @@
+// ──────────────────────────────────────────────────────────────────────
+//  Face selection tool
+//  Tap on faces to toggle selection (multi-select by default)
+//  Drag to orbit (doesn't affect selection)
+//  *[Delete this line]*
+//  Long‑press on empty area then tap selected face to deselect
+//  (This behaviour has been removed – it was never implemented correctly)
+// 
+
 import * as THREE from 'three';
 
-/**
- * Face selection tool
- * Tap on faces to toggle selection (multi-select by default)
- * Drag to orbit (doesn't affect selection)
- * Long-press on empty area then tap selected face to deselect
- */
 export class SelectTool {
   constructor(sceneManager) {
     this.sceneManager = sceneManager;
@@ -53,6 +56,7 @@ export class SelectTool {
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
+    this.handleDoubleClick = this.handleDoubleClick.bind(this);
   }
 
   setMesh(editableMesh) {
@@ -65,6 +69,8 @@ export class SelectTool {
     canvas.addEventListener('pointerup', this.handlePointerUp);
     canvas.addEventListener('pointermove', this.handlePointerMove);
 
+    canvas.addEventListener('dblclick', this.handleDoubleClick);
+
     // Enable controls for wheel zoom and rotation
     this.sceneManager.setControlsEnabled(true);
   }
@@ -74,6 +80,8 @@ export class SelectTool {
       this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
       this.canvas.removeEventListener('pointerup', this.handlePointerUp);
       this.canvas.removeEventListener('pointermove', this.handlePointerMove);
+      
+      this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
     }
     this.clearHighlight();
     this.clearHover();
@@ -131,6 +139,23 @@ export class SelectTool {
       this.updateHover(face);
     }
   }
+
+  /**
+  * Double‑click / double‑tap on the canvas (not on a face)
+  * → clear the current selection.
+  */
+  handleDoubleClick(e){
+    if (!e.isPrimary) return; // keep it primary only
+    if (!this.editableMesh) return 
+
+    // if double-click hit a face, do nothing
+    const face = this.raycastFace(e.clientX, e.clientY);
+    if (face) return;
+
+    // double clicked on empty space - clear all selections
+    this.clearSelection();
+  }
+  
 
   /**
    * Raycast to find which face was clicked
