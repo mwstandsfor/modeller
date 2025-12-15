@@ -123,6 +123,20 @@ export function insetFace(face, distance, nextFaceId) {
 }
 
 /**
+ * Check if all faces are roughly coplanar (same normal direction)
+ * @param {Face[]} faces
+ * @returns {boolean}
+ */
+function areCoplanar(faces) {
+  if (faces.length <= 1) return true;
+
+  const refNormal = faces[0].normal;
+  const threshold = 0.99; // cos(~8 degrees)
+
+  return faces.every(face => Math.abs(face.normal.dot(refNormal)) > threshold);
+}
+
+/**
  * Inset multiple faces together as a region (like Blender's default inset)
  * Only creates side faces along the outer perimeter - shared edges don't get side faces
  *
@@ -134,6 +148,11 @@ export function insetFace(face, distance, nextFaceId) {
 export function insetFaces(faces, distance, nextFaceId) {
   if (faces.length === 0) {
     return { insetFaces: [], sideFaces: [], nextFaceId };
+  }
+
+  // For non-coplanar faces, use individual inset but skip shared edge side faces
+  if (!areCoplanar(faces)) {
+    return insetFacesNonCoplanar(faces, distance, nextFaceId);
   }
 
   // Count edge occurrences across all faces to find perimeter edges
@@ -225,6 +244,59 @@ export function insetFaces(faces, distance, nextFaceId) {
 
         const sideFace = new Face(nextFaceId++, [v0, v1, v2, v3], [uv0, uv1, uv2, uv3]);
         allSideFaces.push(sideFace);
+      }
+    }
+  });
+
+  return {
+    insetFaces: insetFacesResult,
+    sideFaces: allSideFaces,
+    nextFaceId
+  };
+}
+
+/**
+ * Inset non-coplanar faces - each face is inset individually on its own plane,
+ * but shared edges don't get side faces (to avoid internal geometry)
+ *
+ * @param {Face[]} faces - Faces to inset
+ * @param {number} distance - Inset distance
+ * @param {number} nextFaceId - Starting ID for new faces
+ * @returns {{insetFaces: Face[], sideFaces: Face[], nextFaceId: number}}
+ */
+function insetFacesNonCoplanar(faces, distance, nextFaceId) {
+  // Count edge occurrences to find shared edges
+  const edgeCounts = new Map();
+
+  faces.forEach(face => {
+    const n = face.vertices.length;
+    for (let i = 0; i < n; i++) {
+      const nextI = (i + 1) % n;
+      const key = edgeKey(face.vertices[i], face.vertices[nextI]);
+      edgeCounts.set(key, (edgeCounts.get(key) || 0) + 1);
+    }
+  });
+
+  const insetFacesResult = [];
+  const allSideFaces = [];
+
+  // Inset each face individually
+  faces.forEach(face => {
+    const result = insetFace(face, distance, nextFaceId);
+    nextFaceId = result.nextFaceId;
+
+    // Add the inset face
+    insetFacesResult.push(result.insetFace);
+
+    // Only add side faces for perimeter edges (not shared)
+    const n = face.vertices.length;
+    for (let i = 0; i < n; i++) {
+      const nextI = (i + 1) % n;
+      const key = edgeKey(face.vertices[i], face.vertices[nextI]);
+
+      if (edgeCounts.get(key) === 1) {
+        // This is a perimeter edge - keep its side face
+        allSideFaces.push(result.sideFaces[i]);
       }
     }
   });
