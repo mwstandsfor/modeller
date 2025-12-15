@@ -525,7 +525,8 @@ export class InsetTool {
     if (intersects.length === 0) return null;
 
     const point = intersects[0].point;
-    return this.editableMesh.findFaceAtPoint(point);
+    const triangleIndex = intersects[0].faceIndex;
+    return this.editableMesh.findFaceAtPoint(point, triangleIndex);
   }
 
   handlePointerDown(e) {

@@ -162,28 +162,10 @@ export class SelectTool {
     if (intersects.length === 0) return null;
 
     const hitPoint = intersects[0].point;
+    const triangleIndex = intersects[0].faceIndex;
 
-    // Find which face contains this point
-    for (const face of this.editableMesh.faces) {
-      if (this.editableMesh.isPointInFace(hitPoint, face)) {
-        return face;
-      }
-    }
-
-    // Fallback: find closest face center
-    let closestFace = null;
-    let minDistance = Infinity;
-
-    for (const face of this.editableMesh.faces) {
-      const center = face.getCenter();
-      const distance = hitPoint.distanceTo(center);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestFace = face;
-      }
-    }
-
-    return closestFace;
+    // Use triangle index for direct lookup (most accurate)
+    return this.editableMesh.findFaceAtPoint(hitPoint, triangleIndex);
   }
 
   /**

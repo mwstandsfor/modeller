@@ -89,6 +89,7 @@ export class EditableMesh {
     this.texture = null;
     this.mesh = null; // Three.js mesh
     this.wireframe = null; // Wireframe overlay
+    this.triangleToFace = []; // Maps triangle index to Face object
 
     // Wireframe material - renders on top with depth test disabled
     this.wireframeMaterial = new THREE.LineBasicMaterial({
@@ -153,6 +154,7 @@ export class EditableMesh {
     const positions = [];
     const uvs = [];
     const indices = [];
+    this.triangleToFace = []; // Reset triangle-to-face mapping
 
     let vertexIndex = 0;
 
@@ -170,6 +172,7 @@ export class EditableMesh {
       const count = face.vertices.length;
       for (let i = 1; i < count - 1; i++) {
         indices.push(startIndex, startIndex + i, startIndex + i + 1);
+        this.triangleToFace.push(face); // Map this triangle to its face
       }
     });
 
@@ -287,12 +290,31 @@ export class EditableMesh {
   }
 
   /**
-   * Find which face contains a given point
-   * @param {THREE.Vector3} point
+   * Find face by triangle index from raycast
+   * @param {number} triangleIndex - The faceIndex from raycast intersection
    * @returns {Face|null}
    */
-  findFaceAtPoint(point) {
-    // Use raycasting in local space
+  findFaceByTriangleIndex(triangleIndex) {
+    if (triangleIndex >= 0 && triangleIndex < this.triangleToFace.length) {
+      return this.triangleToFace[triangleIndex];
+    }
+    return null;
+  }
+
+  /**
+   * Find which face contains a given point
+   * @param {THREE.Vector3} point
+   * @param {number} [triangleIndex] - Optional triangle index from raycast for direct lookup
+   * @returns {Face|null}
+   */
+  findFaceAtPoint(point, triangleIndex) {
+    // If we have a triangle index, use direct lookup (most accurate)
+    if (triangleIndex !== undefined && triangleIndex >= 0) {
+      const face = this.findFaceByTriangleIndex(triangleIndex);
+      if (face) return face;
+    }
+
+    // Fallback to point-in-polygon test
     for (const face of this.faces) {
       if (this.isPointInFace(point, face)) {
         return face;
