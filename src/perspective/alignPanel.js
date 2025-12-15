@@ -86,6 +86,11 @@ export class AlignmentPanel {
     // Update UI
     this.updateUI();
     this.draw();
+
+    // Trigger resize for the 3D scene to update to split viewport size
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
   }
 
   /**
@@ -108,6 +113,12 @@ export class AlignmentPanel {
     // Clear state
     this.image = null;
     this.points = [];
+
+    // Trigger resize for the 3D scene to update to new viewport size
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
   }
 
   /**
