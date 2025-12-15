@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Face } from './face.js';
-import { handleFaceSelection } from '../tools/selection.js';
+import { handleFaceSelection, createEmptySpaceHandler } from '../tools/selection.js';
 
 /**
  * Create a canonical edge key for comparison (order-independent)
@@ -250,6 +250,9 @@ export class ExtrudeTool {
     // Sensitivity
     this.sensitivity = 0.01;
 
+    // Double-tap on empty space handler
+    this.emptySpaceHandler = createEmptySpaceHandler();
+
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
@@ -386,10 +389,17 @@ export class ExtrudeTool {
     const face = this.findFaceAtPoint(e.clientX, e.clientY);
 
     if (!face) {
-      // Clicking on empty space - allow 3D rotation
+      // Clicking on empty space - check for double-tap to clear selection
+      if (this.emptySpaceHandler.checkDoubleTap(this.selectedFaces, this.selectTool, this.onFaceSelected)) {
+        this.removeGizmo();
+      }
+      // Allow 3D rotation
       this.sceneManager.setControlsEnabled(true);
       return;
     }
+
+    // Reset empty space tap timer when clicking on a face
+    this.emptySpaceHandler.reset();
 
     // Disable orbit controls
     this.sceneManager.setControlsEnabled(false);
