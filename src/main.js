@@ -8,6 +8,7 @@ import { EditableMesh } from './geometry/face.js';
 import { HistoryManager } from './history/undo.js';
 import { StorageManager } from './storage/local.js';
 import { PerspectiveOverlay } from './perspective/overlay.js';
+import { AlignmentPanel } from './perspective/alignPanel.js';
 import { perspectiveTransform, isOpenCVReady, waitForOpenCV } from './perspective/dewarp.js';
 import { CutOverlay, sliceMesh } from './geometry/cut.js';
 import { SelectTool } from './tools/select.js';
@@ -41,26 +42,14 @@ class App {
     });
 
     // Initialize tools
+    // Legacy overlay (kept for compatibility)
     this.perspectiveOverlay = new PerspectiveOverlay(this.overlayCanvas, this.scene);
-    this.perspectiveOverlay.onComplete = (points) => this.onPerspectiveComplete(points);
-    this.perspectiveOverlay.onReady = (points) => {
-      this.pendingPerspectivePoints = points;
-      this.showRatioSlider();
-      this.updatePerspectivePreview(); // Show initial preview
-      // Keep corner markers visible (don't enter preview mode)
-      this.showApproveButton(() => {
-        const points = this.pendingPerspectivePoints;
-        this.pendingPerspectivePoints = null;
-        this.perspectiveOverlay.onComplete(points);
-      }, 'Apply');
-    };
-    // Update preview when corners are adjusted (called on pointerUp)
-    this.perspectiveOverlay.onChange = (points) => {
-      this.pendingPerspectivePoints = points;
-      this.updatePerspectivePreview(); // Recalculate with new corner positions
-      // Keep markers visible after editing
-    };
-    // No need for onExitPreview - we keep the rectified image when editing
+
+    // New split-panel alignment
+    this.alignmentPanel = new AlignmentPanel();
+    this.alignmentPanel.onPointsChange = (data) => this.onAlignmentPointsChange(data);
+    this.alignmentPanel.onConfirm = (data) => this.onAlignmentConfirm(data);
+    this.alignmentPanel.onSkip = () => this.skipPerspective();
 
     this.cutOverlay = new CutOverlay(this.overlayCanvas, this.scene);
     this.cutOverlay.onCutComplete = (point1, point2) => {
@@ -629,9 +618,16 @@ class App {
       this.scene.add(this.editableMesh.mesh);
       this.scene.add(this.editableMesh.getWireframe());
 
+      // Clean up preview mesh if any
+      if (this.previewMesh) {
+        this.scene.remove(this.previewMesh);
+        this.previewMesh.geometry.dispose();
+        this.previewMesh.material.dispose();
+        this.previewMesh = null;
+      }
+
       this.hasMesh = true;
-      this.perspectiveOverlay.deactivate();
-      this.hideSkipButton();
+      this.alignmentPanel.deactivate();
       this.setMode(Modes.SELECT);
 
       this.history.pushState(this.getSerializableState(), 'Skip perspective');
@@ -669,7 +665,7 @@ class App {
     // Deactivate old mode tools
     switch (oldMode) {
       case Modes.PERSPECTIVE:
-        this.perspectiveOverlay.deactivate();
+        this.alignmentPanel.deactivate();
         break;
       case Modes.CUT:
         this.cutOverlay.deactivate();
@@ -688,9 +684,8 @@ class App {
     // Activate new mode tools
     switch (newMode) {
       case Modes.PERSPECTIVE:
-        if (this.hasImage) {
-          this.perspectiveOverlay.activate();
-          this.showSkipButton();  // Show skip button during perspective mode
+        if (this.hasImage && this.currentImageElement) {
+          this.alignmentPanel.activate(this.currentImageElement);
         }
         break;
       case Modes.CUT:
@@ -886,7 +881,6 @@ class App {
       this.scene.add(this.editableMesh.getWireframe());
 
       this.hasMesh = true;
-      this.perspectiveOverlay.deactivate();
       this.setMode(Modes.SELECT);
 
       this.history.pushState(this.getSerializableState(), 'Perspective correction');
@@ -898,6 +892,173 @@ class App {
       console.error('Failed to apply perspective correction:', error);
       alert('Failed to apply perspective correction. Please try again.');
     }
+  }
+
+  /**
+   * Handle alignment panel points change (for live preview)
+   * @param {Object} data - { points, ratioScale, image }
+   */
+  async onAlignmentPointsChange(data) {
+    const { points, ratioScale, image } = data;
+
+    try {
+      // Wait for OpenCV if needed
+      if (!isOpenCVReady()) {
+        await waitForOpenCV();
+      }
+
+      // Get dimensions from the alignment canvas
+      const canvasWidth = image.width;
+      const canvasHeight = image.height;
+
+      const result = await perspectiveTransform(
+        points,
+        image,
+        canvasWidth,
+        canvasHeight,
+        ratioScale
+      );
+
+      // Update the 3D preview
+      this.updatePreviewMesh(result.canvas);
+
+    } catch (error) {
+      console.error('Failed to update alignment preview:', error);
+    }
+  }
+
+  /**
+   * Handle alignment panel confirm
+   * @param {Object} data - { points, ratioScale, image }
+   */
+  async onAlignmentConfirm(data) {
+    const { points, ratioScale, image } = data;
+
+    try {
+      // Wait for OpenCV if needed
+      if (!isOpenCVReady()) {
+        await waitForOpenCV();
+      }
+
+      const canvasWidth = image.width;
+      const canvasHeight = image.height;
+
+      const result = await perspectiveTransform(
+        points,
+        image,
+        canvasWidth,
+        canvasHeight,
+        ratioScale
+      );
+
+      // Create final mesh from result
+      await this.createMeshFromCanvas(result.canvas);
+
+      this.hasMesh = true;
+      this.setMode(Modes.SELECT);
+
+      this.history.pushState(this.getSerializableState(), 'Perspective correction');
+      this.scene.resetCamera();
+      this.updateUI();
+
+    } catch (error) {
+      console.error('Failed to apply alignment:', error);
+      alert('Failed to apply alignment. Please try again.');
+    }
+  }
+
+  /**
+   * Update preview mesh with canvas (for live preview during alignment)
+   */
+  updatePreviewMesh(canvas) {
+    // Remove old preview mesh
+    if (this.previewMesh) {
+      this.scene.remove(this.previewMesh);
+      this.previewMesh.geometry.dispose();
+      this.previewMesh.material.dispose();
+      this.previewMesh = null;
+    }
+
+    // Remove original image plane for preview
+    if (this.imagePlane && this.imagePlane.mesh.visible) {
+      this.imagePlane.mesh.visible = false;
+    }
+
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    // Calculate dimensions
+    const maxSize = 2;
+    const aspect = canvas.width / canvas.height;
+    let width, height;
+
+    if (aspect > 1) {
+      width = maxSize;
+      height = maxSize / aspect;
+    } else {
+      height = maxSize;
+      width = maxSize * aspect;
+    }
+
+    // Create preview mesh
+    const geometry = new THREE.PlaneGeometry(width, height);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide
+    });
+
+    this.previewMesh = new THREE.Mesh(geometry, material);
+    this.previewMesh.name = 'alignmentPreview';
+    this.scene.add(this.previewMesh);
+  }
+
+  /**
+   * Create final mesh from canvas
+   */
+  async createMeshFromCanvas(canvas) {
+    // Remove preview mesh
+    if (this.previewMesh) {
+      this.scene.remove(this.previewMesh);
+      this.previewMesh.geometry.dispose();
+      this.previewMesh.material.dispose();
+      this.previewMesh = null;
+    }
+
+    // Remove original image plane
+    if (this.imagePlane) {
+      this.scene.remove(this.imagePlane.mesh);
+      this.imagePlane.dispose();
+      this.imagePlane = null;
+    }
+
+    // Store corrected canvas for export
+    this.correctedCanvas = canvas;
+
+    // Create texture from corrected image
+    const correctedTexture = new THREE.CanvasTexture(canvas);
+    correctedTexture.colorSpace = THREE.SRGBColorSpace;
+
+    // Calculate plane dimensions
+    const maxSize = 2;
+    const aspect = canvas.width / canvas.height;
+    let width, height;
+
+    if (aspect > 1) {
+      width = maxSize;
+      height = maxSize / aspect;
+    } else {
+      height = maxSize;
+      width = maxSize * aspect;
+    }
+
+    // Create editable mesh
+    this.editableMesh = new EditableMesh();
+    this.editableMesh.createFromDimensions(width, height, correctedTexture);
+
+    // Add mesh and wireframe to scene
+    this.scene.add(this.editableMesh.mesh);
+    this.scene.add(this.editableMesh.getWireframe());
   }
 
   /**

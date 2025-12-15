@@ -708,3 +708,208 @@ body {
 #toolbar {
   display: none;
 }
+
+/* ========================================
+   Split Panel Mode (Alignment/Perspective)
+   ======================================== */
+
+#app.split-mode {
+  display: flex;
+  flex-direction: row;
+}
+
+#app.split-mode #left-bar,
+#app.split-mode #action-bar,
+#app.split-mode #bottom-bar,
+#app.split-mode #right-bar,
+#app.split-mode #ratio-control {
+  display: none;
+}
+
+/* Left Panel - Image with corner drawing */
+#align-panel {
+  display: none;
+  flex: 1;
+  position: relative;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+#app.split-mode #align-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+#align-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-container);
+  border-bottom: 1px solid var(--border);
+}
+
+#align-panel .panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#align-panel .panel-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#align-panel .panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#align-panel .panel-content {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image:
+    linear-gradient(45deg, #1a1a1d 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1a1d 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1a1d 75%),
+    linear-gradient(-45deg, transparent 75%, #1a1a1d 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  overflow: hidden;
+}
+
+#align-canvas {
+  max-width: calc(100% - 40px);
+  max-height: calc(100% - 40px);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+}
+
+#align-panel .panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-container);
+  border-top: 1px solid var(--border);
+}
+
+#align-panel .point-counter {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+#align-panel .point-counter span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#align-panel .instructions-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Right Panel - 3D Preview */
+#app.split-mode #viewport {
+  position: relative;
+  flex: 1;
+}
+
+/* Panel buttons */
+.panel-btn {
+  height: 32px;
+  padding: 0 16px;
+  background: var(--bg-button);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-btn:hover {
+  background: var(--bg-button-hover);
+  color: var(--text-primary);
+}
+
+.panel-btn.primary {
+  background: var(--accent);
+  color: white;
+}
+
+.panel-btn.primary:hover {
+  background: var(--accent-hover);
+}
+
+.panel-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.panel-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Split mode ratio control */
+#align-panel .ratio-control-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+#align-panel .ratio-control-inline label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+#align-panel .ratio-control-inline .ratio-value {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#align-panel .ratio-control-inline input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 4px;
+  background: var(--bg-button);
+  border-radius: 2px;
+  outline: none;
+}
+
+#align-panel .ratio-control-inline input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+/* Mobile adjustments for split mode */
+@media (max-width: 768px) {
+  #app.split-mode {
+    flex-direction: column;
+  }
+
+  #align-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 50vh;
+  }
+
+  #app.split-mode #viewport {
+    min-height: 50vh;
+  }
+}

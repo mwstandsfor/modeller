@@ -111,11 +111,46 @@
       </div>
     </aside>
 
+    <!-- Alignment Panel (Split View - Left Side) -->
+    <aside id="align-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Define Perspective</div>
+          <div class="panel-subtitle">Click 4 corners of the rectangular area</div>
+        </div>
+        <div class="panel-actions">
+          <button id="align-clear" class="panel-btn" title="Clear Points">
+            <span class="material-symbols-outlined">restart_alt</span>
+            Clear
+          </button>
+        </div>
+      </div>
+      <div class="panel-content">
+        <canvas id="align-canvas"></canvas>
+      </div>
+      <div class="panel-footer">
+        <div class="point-counter">Points: <span id="align-point-count">0</span>/4</div>
+        <div class="ratio-control-inline">
+          <label>Ratio: <span class="ratio-value" id="align-ratio-value">1.00</span>x</label>
+          <input type="range" id="align-ratio-slider" min="0.5" max="2.0" value="1.0" step="0.01">
+        </div>
+        <div class="panel-actions">
+          <button id="align-skip" class="panel-btn" title="Skip alignment">
+            Skip
+          </button>
+          <button id="align-confirm" class="panel-btn primary" disabled title="Confirm alignment">
+            <span class="material-symbols-outlined">check</span>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </aside>
+
     <!-- Main Viewport -->
     <main id="viewport">
       <canvas id="canvas"></canvas>
 
-      <!-- 2D Overlay for perspective lines -->
+      <!-- 2D Overlay for perspective lines (legacy - kept for compatibility) -->
       <canvas id="overlay" style="display: none;"></canvas>
 
       <!-- Instructions tooltip -->
