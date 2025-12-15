@@ -152,9 +152,6 @@ export function insetFaces(faces, distance, nextFaceId) {
   const insetFacesResult = [];
   const allSideFaces = [];
 
-  // Map to track inset vertices by original vertex position (for shared vertices)
-  const insetVertexMap = new Map();
-
   faces.forEach(face => {
     const n = face.vertices.length;
     const normal = face.normal;
@@ -169,14 +166,8 @@ export function insetFaces(faces, distance, nextFaceId) {
     }
 
     // Calculate inset vertices using bisector method
+    // Each face gets its own inset vertices (don't share across faces - they have different normals)
     const insetVertices = face.vertices.map((v, i) => {
-      const vKey = `${Math.round(v.x * 1000000)},${Math.round(v.y * 1000000)},${Math.round(v.z * 1000000)}`;
-
-      // Check if we already computed an inset vertex for this position
-      if (insetVertexMap.has(vKey)) {
-        return insetVertexMap.get(vKey).clone();
-      }
-
       const prevI = (i - 1 + n) % n;
       const normal1 = edgeNormals[prevI];
       const normal2 = edgeNormals[i];
@@ -184,17 +175,13 @@ export function insetFaces(faces, distance, nextFaceId) {
       const bisector = new THREE.Vector3().addVectors(normal1, normal2);
       const bisectorLength = bisector.length();
 
-      let insetV;
       if (bisectorLength < 0.001) {
-        insetV = v.clone().add(normal1.clone().multiplyScalar(distance));
+        return v.clone().add(normal1.clone().multiplyScalar(distance));
       } else {
         const scale = distance * 2 / bisectorLength;
         bisector.normalize();
-        insetV = v.clone().add(bisector.multiplyScalar(scale));
+        return v.clone().add(bisector.multiplyScalar(scale));
       }
-
-      insetVertexMap.set(vKey, insetV);
-      return insetV.clone();
     });
 
     // Calculate UV center and inset UVs
