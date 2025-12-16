@@ -47,6 +47,7 @@ class App {
 
     // New split-panel alignment
     this.alignmentPanel = new AlignmentPanel();
+    this.alignmentPanel.onPointsChange = (data) => this.onAlignmentPointsChange(data);
     this.alignmentPanel.onConfirm = (data) => this.onAlignmentConfirm(data);
     this.alignmentPanel.onSkip = () => this.skipPerspective();
 
@@ -891,6 +892,73 @@ class App {
       console.error('Failed to apply perspective correction:', error);
       alert('Failed to apply perspective correction. Please try again.');
     }
+  }
+
+  /**
+   * Handle alignment panel points change - update 3D preview
+   * @param {Object} data - { points, ratioScale, image }
+   */
+  async onAlignmentPointsChange(data) {
+    const { points, ratioScale, image } = data;
+
+    try {
+      // Wait for OpenCV if needed
+      if (!isOpenCVReady()) {
+        await waitForOpenCV();
+      }
+
+      const canvasWidth = image.width;
+      const canvasHeight = image.height;
+
+      const result = await perspectiveTransform(
+        points,
+        image,
+        canvasWidth,
+        canvasHeight,
+        ratioScale
+      );
+
+      // Update the 3D image plane with the preview
+      this.updatePreviewPlane(result.canvas);
+
+    } catch (error) {
+      console.error('Failed to update alignment preview:', error);
+    }
+  }
+
+  /**
+   * Update the 3D image plane with a preview canvas
+   */
+  updatePreviewPlane(canvas) {
+    if (!this.imagePlane || !this.imagePlane.mesh) return;
+
+    // Create texture from canvas
+    const previewTexture = new THREE.CanvasTexture(canvas);
+    previewTexture.colorSpace = THREE.SRGBColorSpace;
+
+    // Calculate new dimensions
+    const maxSize = 2;
+    const aspect = canvas.width / canvas.height;
+    let width, height;
+
+    if (aspect > 1) {
+      width = maxSize;
+      height = maxSize / aspect;
+    } else {
+      height = maxSize;
+      width = maxSize * aspect;
+    }
+
+    // Update geometry
+    this.imagePlane.mesh.geometry.dispose();
+    this.imagePlane.mesh.geometry = new THREE.PlaneGeometry(width, height);
+
+    // Update texture
+    if (this.imagePlane.mesh.material.map) {
+      this.imagePlane.mesh.material.map.dispose();
+    }
+    this.imagePlane.mesh.material.map = previewTexture;
+    this.imagePlane.mesh.material.needsUpdate = true;
   }
 
   /**
