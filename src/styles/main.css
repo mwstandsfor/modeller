@@ -966,9 +966,9 @@ body {
 }
 
 .mode-btn.active {
-  background: var(--accent);
-  color: #000;
-  border-color: var(--accent);
+  background: var(--bg-button-active);
+  color: var(--text-primary);
+  border-color: transparent;
 }
 
 .mode-btn .material-symbols-outlined {

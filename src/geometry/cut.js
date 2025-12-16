@@ -349,6 +349,11 @@ export class CutOverlay {
     // Rotation state for 3D navigation
     this.isRotating = false;
 
+    // Drag state for repositioning points
+    this.isDragging = false;
+    this.dragTarget = null;  // 'start', 'faceStart'
+    this.wasDragging = false;  // To suppress click after drag
+
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -630,7 +635,44 @@ export class CutOverlay {
     };
   }
 
+  /**
+   * Check if a screen position is near an existing cut point
+   * @returns {string|null} - 'start', 'faceStart', or null
+   */
+  getPointAtPosition(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const threshold = 20; // pixels
+
+    if (this.mode === 'face') {
+      // Check face start point
+      if (this.faceStartPoint && !this.pendingCut) {
+        const screen = this.worldToScreen(this.faceStartPoint);
+        const dist = Math.hypot(x - screen.x, y - screen.y);
+        if (dist < threshold) return 'faceStart';
+      }
+    } else {
+      // Edge mode - check start point
+      if (this.startPoint && !this.pendingCut) {
+        const dist = Math.hypot(x - this.startPoint.x, y - this.startPoint.y);
+        if (dist < threshold) return 'start';
+      }
+    }
+
+    return null;
+  }
+
   handlePointerDown(e) {
+    // Check if clicking on an existing point to start dragging
+    const pointTarget = this.getPointAtPosition(e.clientX, e.clientY);
+    if (pointTarget) {
+      this.isDragging = true;
+      this.dragTarget = pointTarget;
+      e.preventDefault();
+      return;
+    }
+
     // Handle face mode
     if (this.mode === 'face') {
       const result = this.findFaceAtPosition(e.clientX, e.clientY);
@@ -725,6 +767,37 @@ export class CutOverlay {
   }
 
   handlePointerMove(e) {
+    // Update cursor based on whether we're over a draggable point
+    if (!this.isDragging) {
+      const pointTarget = this.getPointAtPosition(e.clientX, e.clientY);
+      this.canvas.style.cursor = pointTarget ? 'grab' : 'crosshair';
+    } else {
+      this.canvas.style.cursor = 'grabbing';
+    }
+
+    // Handle dragging of existing points
+    if (this.isDragging && this.dragTarget) {
+      if (this.dragTarget === 'faceStart') {
+        // Drag face start point to new position on face
+        const result = this.findFaceAtPosition(e.clientX, e.clientY);
+        if (result && result.face) {
+          this.faceStartPoint = result.point.clone();
+          this.startFace = result.face;
+        }
+      } else if (this.dragTarget === 'start') {
+        // Drag edge start point along the same edge
+        const result = this.findEdgeAtPosition(e.clientX, e.clientY);
+        if (result) {
+          // Check if hovering the same edge or allow moving to a different edge
+          this.startPoint = this.worldToScreen(result.edge.point);
+          this.startEdge = result.edge;
+          this.startFace = result.face;
+        }
+      }
+      this.draw();
+      return;
+    }
+
     // Handle face mode
     if (this.mode === 'face') {
       const result = this.findFaceAtPosition(e.clientX, e.clientY);
@@ -758,6 +831,12 @@ export class CutOverlay {
   }
 
   handlePointerClick(e) {
+    // Skip click if we just finished dragging
+    if (this.wasDragging) {
+      this.wasDragging = false;
+      return;
+    }
+
     // Handle face mode
     if (this.mode === 'face') {
       const result = this.findFaceAtPosition(e.clientX, e.clientY);
@@ -838,6 +917,15 @@ export class CutOverlay {
   }
 
   handlePointerUp(e) {
+    // End dragging
+    if (this.isDragging) {
+      this.isDragging = false;
+      this.dragTarget = null;
+      this.wasDragging = true;  // Suppress upcoming click event
+      this.draw();
+      return;
+    }
+
     // Re-enable pointer events on overlay after rotation
     if (this.isRotating) {
       this.isRotating = false;
@@ -871,6 +959,11 @@ export class CutOverlay {
 
     // Clear pending cut
     this.pendingCut = null;
+
+    // Clear drag state
+    this.isDragging = false;
+    this.dragTarget = null;
+    this.wasDragging = false;
   }
 
   draw() {
