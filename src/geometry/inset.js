@@ -123,22 +123,39 @@ export function insetFace(face, distance, nextFaceId) {
 }
 
 /**
+ * Create a vertex key for position comparison
+ * @param {THREE.Vector3} v
+ * @returns {string}
+ */
+function vertexKey(v) {
+  const precision = 100000;
+  return `${Math.round(v.x * precision)},${Math.round(v.y * precision)},${Math.round(v.z * precision)}`;
+}
+
+/**
  * Check if all faces are roughly coplanar (same normal direction)
+ * Uses average normal for more robust comparison
  * @param {Face[]} faces
  * @returns {boolean}
  */
 function areCoplanar(faces) {
   if (faces.length <= 1) return true;
 
-  const refNormal = faces[0].normal;
-  const threshold = 0.99; // cos(~8 degrees)
+  // Calculate average normal
+  const avgNormal = new THREE.Vector3();
+  faces.forEach(face => avgNormal.add(face.normal));
+  avgNormal.normalize();
 
-  return faces.every(face => Math.abs(face.normal.dot(refNormal)) > threshold);
+  // Check if all faces are within threshold of average
+  const threshold = 0.95; // cos(~18 degrees) - more lenient to handle floating-point imprecision
+
+  return faces.every(face => Math.abs(face.normal.dot(avgNormal)) > threshold);
 }
 
 /**
  * Inset multiple faces together as a region (like Blender's default inset)
  * Only creates side faces along the outer perimeter - shared edges don't get side faces
+ * Properly handles shared vertices by calculating unified inset positions
  *
  * @param {Face[]} faces - Faces to inset
  * @param {number} distance - Inset distance (absolute, same for all edges)
@@ -167,40 +184,76 @@ export function insetFaces(faces, distance, nextFaceId) {
     }
   });
 
-  // Process each face and compute inset vertices
+  // Use average normal for all faces (they're coplanar)
+  const avgNormal = new THREE.Vector3();
+  faces.forEach(face => avgNormal.add(face.normal));
+  avgNormal.normalize();
+
+  // Step 1: Collect all edge normals meeting at each vertex position across ALL faces
+  // This is key for handling shared vertices correctly
+  const vertexEdgeNormals = new Map(); // vKey -> { vertex, normals: [] }
+
+  faces.forEach(face => {
+    const n = face.vertices.length;
+
+    for (let i = 0; i < n; i++) {
+      const v = face.vertices[i];
+      const prevI = (i - 1 + n) % n;
+      const nextI = (i + 1) % n;
+
+      // Edge ending at this vertex (from previous vertex)
+      const edge1 = new THREE.Vector3().subVectors(v, face.vertices[prevI]);
+      const inwardNormal1 = new THREE.Vector3().crossVectors(avgNormal, edge1).normalize();
+
+      // Edge starting at this vertex (to next vertex)
+      const edge2 = new THREE.Vector3().subVectors(face.vertices[nextI], v);
+      const inwardNormal2 = new THREE.Vector3().crossVectors(avgNormal, edge2).normalize();
+
+      const vKey = vertexKey(v);
+      if (!vertexEdgeNormals.has(vKey)) {
+        vertexEdgeNormals.set(vKey, { vertex: v.clone(), normals: [] });
+      }
+
+      // Add both edge normals for this vertex
+      vertexEdgeNormals.get(vKey).normals.push(inwardNormal1, inwardNormal2);
+    }
+  });
+
+  // Step 2: Calculate unified inset position for each unique vertex
+  const vertexInsetMap = new Map(); // vKey -> inset position
+
+  vertexEdgeNormals.forEach((data, vKey) => {
+    // Sum all edge normals meeting at this vertex
+    const bisector = new THREE.Vector3();
+    data.normals.forEach(n => bisector.add(n));
+    const bisectorLength = bisector.length();
+
+    if (bisectorLength < 0.001) {
+      // Edge case: all normals cancel out
+      vertexInsetMap.set(vKey, data.vertex.clone().add(data.normals[0].clone().multiplyScalar(distance)));
+    } else {
+      // Scale factor: for N edge normals meeting at a vertex, the bisector length is 2*N*cos(angle/2)
+      // We want uniform distance from all edges, which requires: distance / cos(angle/2)
+      // For 2 edges: bisectorLength = 2*cos(angle/2), so scale = distance * 2 / bisectorLength
+      // For 4 edges (shared vertex): bisectorLength = 4*cos(angle/2), scale still = distance * 2 / bisectorLength
+      // The formula generalizes correctly
+      const scale = distance * 2 / bisectorLength;
+      bisector.normalize();
+      vertexInsetMap.set(vKey, data.vertex.clone().add(bisector.multiplyScalar(scale)));
+    }
+  });
+
+  // Step 3: Build inset faces using the shared inset positions
   const insetFacesResult = [];
   const allSideFaces = [];
 
   faces.forEach(face => {
     const n = face.vertices.length;
-    const normal = face.normal;
 
-    // Calculate edge vectors and inward-facing normals for each edge
-    const edgeNormals = [];
-    for (let i = 0; i < n; i++) {
-      const nextI = (i + 1) % n;
-      const edge = new THREE.Vector3().subVectors(face.vertices[nextI], face.vertices[i]);
-      const inwardNormal = new THREE.Vector3().crossVectors(normal, edge).normalize();
-      edgeNormals.push(inwardNormal);
-    }
-
-    // Calculate inset vertices using bisector method
-    // Each face gets its own inset vertices (don't share across faces - they have different normals)
-    const insetVertices = face.vertices.map((v, i) => {
-      const prevI = (i - 1 + n) % n;
-      const normal1 = edgeNormals[prevI];
-      const normal2 = edgeNormals[i];
-
-      const bisector = new THREE.Vector3().addVectors(normal1, normal2);
-      const bisectorLength = bisector.length();
-
-      if (bisectorLength < 0.001) {
-        return v.clone().add(normal1.clone().multiplyScalar(distance));
-      } else {
-        const scale = distance * 2 / bisectorLength;
-        bisector.normalize();
-        return v.clone().add(bisector.multiplyScalar(scale));
-      }
+    // Get inset vertices from the shared map
+    const insetVertices = face.vertices.map(v => {
+      const vKey = vertexKey(v);
+      return vertexInsetMap.get(vKey).clone();
     });
 
     // Calculate UV center and inset UVs
