@@ -769,9 +769,6 @@ body {
 #align-panel .panel-content {
   flex: 1;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background-image:
     linear-gradient(45deg, #1a1a1d 25%, transparent 25%),
     linear-gradient(-45deg, #1a1a1d 25%, transparent 25%),
@@ -783,9 +780,11 @@ body {
 }
 
 #align-canvas {
-  max-width: calc(100% - 40px);
-  max-height: calc(100% - 40px);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   touch-action: none; /* Prevent browser handling of touch gestures for pinch-zoom/pan */
   cursor: crosshair;
 }

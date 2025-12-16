@@ -170,36 +170,42 @@ export class AlignmentPanel {
   }
 
   /**
-   * Fit canvas to image while maintaining aspect ratio
+   * Setup canvas to fill the panel content area
    */
   fitCanvasToImage() {
     if (!this.image) return;
 
     const container = this.panel.querySelector('.panel-content');
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    // Set canvas to fill container (use device pixel ratio for crisp rendering)
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = containerWidth * dpr;
+    this.canvas.height = containerHeight * dpr;
+    this.canvas.style.width = `${containerWidth}px`;
+    this.canvas.style.height = `${containerHeight}px`;
+
+    // Scale context for device pixel ratio
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Calculate initial scale to fit image within canvas with padding
     const padding = 40;
-    const maxWidth = container.clientWidth - padding;
-    const maxHeight = container.clientHeight - padding;
+    const availWidth = containerWidth - padding;
+    const availHeight = containerHeight - padding;
 
     const imgRatio = this.image.width / this.image.height;
-    const containerRatio = maxWidth / maxHeight;
-
-    let displayWidth, displayHeight;
+    const containerRatio = availWidth / availHeight;
 
     if (containerRatio > imgRatio) {
-      displayHeight = maxHeight;
-      displayWidth = displayHeight * imgRatio;
+      this.baseScale = availHeight / this.image.height;
     } else {
-      displayWidth = maxWidth;
-      displayHeight = displayWidth / imgRatio;
+      this.baseScale = availWidth / this.image.width;
     }
 
-    // Set canvas to image dimensions (for accurate point mapping)
-    this.canvas.width = this.image.width;
-    this.canvas.height = this.image.height;
-
-    // Set display size
-    this.canvas.style.width = `${displayWidth}px`;
-    this.canvas.style.height = `${displayHeight}px`;
+    // Store container dimensions for coordinate transforms
+    this.containerWidth = containerWidth;
+    this.containerHeight = containerHeight;
   }
 
   handleResize() {
@@ -213,7 +219,7 @@ export class AlignmentPanel {
   getPoint(e) {
     const rect = this.canvas.getBoundingClientRect();
 
-    // Screen position relative to canvas element
+    // Screen position relative to canvas element (in CSS pixels)
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
@@ -225,24 +231,20 @@ export class AlignmentPanel {
    * Convert screen coordinates (relative to canvas element) to image coordinates
    */
   screenToImage(screenX, screenY) {
-    const rect = this.canvas.getBoundingClientRect();
+    // Center of container
+    const centerX = this.containerWidth / 2;
+    const centerY = this.containerHeight / 2;
 
-    // First convert screen coords to canvas internal coords (accounting for CSS scaling)
-    const cssScaleX = this.canvas.width / rect.width;
-    const cssScaleY = this.canvas.height / rect.height;
+    // Combined scale (base fit + user zoom)
+    const totalScale = this.baseScale * this.scale;
 
-    const canvasX = screenX * cssScaleX;
-    const canvasY = screenY * cssScaleY;
+    // Apply inverse transform: screen -> image
+    // Transform is: translate(center + pan), scale(totalScale), translate(-imgCenter)
+    const imgCenterX = this.image.width / 2;
+    const imgCenterY = this.image.height / 2;
 
-    // Center of canvas in internal coords
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-
-    // Apply inverse zoom/pan transform to get image coordinates
-    // The draw transform is: translate(center + pan), scale, translate(-center)
-    // Inverse is: translate(center), scale^-1, translate(-center - pan)
-    const imageX = (canvasX - centerX - this.panX) / this.scale + centerX;
-    const imageY = (canvasY - centerY - this.panY) / this.scale + centerY;
+    const imageX = (screenX - centerX - this.panX) / totalScale + imgCenterX;
+    const imageY = (screenY - centerY - this.panY) / totalScale + imgCenterY;
 
     return { x: imageX, y: imageY };
   }
@@ -251,24 +253,22 @@ export class AlignmentPanel {
    * Convert image coordinates to screen coordinates (relative to canvas element)
    */
   imageToScreen(imageX, imageY) {
-    const rect = this.canvas.getBoundingClientRect();
+    // Center of container
+    const centerX = this.containerWidth / 2;
+    const centerY = this.containerHeight / 2;
 
-    // Center of canvas in internal coords
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
+    // Combined scale (base fit + user zoom)
+    const totalScale = this.baseScale * this.scale;
 
-    // Apply zoom/pan transform
-    const canvasX = (imageX - centerX) * this.scale + centerX + this.panX;
-    const canvasY = (imageY - centerY) * this.scale + centerY + this.panY;
+    // Image center
+    const imgCenterX = this.image.width / 2;
+    const imgCenterY = this.image.height / 2;
 
-    // Convert canvas internal coords to screen coords
-    const cssScaleX = rect.width / this.canvas.width;
-    const cssScaleY = rect.height / this.canvas.height;
+    // Apply transform: image -> screen
+    const screenX = (imageX - imgCenterX) * totalScale + centerX + this.panX;
+    const screenY = (imageY - imgCenterY) * totalScale + centerY + this.panY;
 
-    return {
-      x: canvasX * cssScaleX,
-      y: canvasY * cssScaleY
-    };
+    return { x: screenX, y: screenY };
   }
 
   /**
@@ -296,35 +296,26 @@ export class AlignmentPanel {
 
   /**
    * Zoom at a specific point (keeps that point stationary)
-   * @param {number} screenX - Screen X relative to canvas element
-   * @param {number} screenY - Screen Y relative to canvas element
-   * @param {number} newScale - New zoom scale
+   * @param {number} screenX - Screen X relative to canvas element (CSS pixels)
+   * @param {number} screenY - Screen Y relative to canvas element (CSS pixels)
+   * @param {number} newScale - New zoom scale (user zoom, not including baseScale)
    */
   zoomAt(screenX, screenY, newScale) {
-    const rect = this.canvas.getBoundingClientRect();
-
-    // Convert screen coords to canvas internal coords
-    const cssScaleX = this.canvas.width / rect.width;
-    const cssScaleY = this.canvas.height / rect.height;
-    const canvasX = screenX * cssScaleX;
-    const canvasY = screenY * cssScaleY;
-
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-
     // Clamp scale
     newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
 
-    // Calculate the image point under the cursor before zoom
-    const imgX = (canvasX - centerX - this.panX) / this.scale + centerX;
-    const imgY = (canvasY - centerY - this.panY) / this.scale + centerY;
+    // Get the image point under cursor before zoom change
+    const imgPoint = this.screenToImage(screenX, screenY);
 
     // Update scale
     this.scale = newScale;
 
-    // Calculate new pan to keep the same image point under the cursor
-    this.panX = canvasX - centerX - (imgX - centerX) * this.scale;
-    this.panY = canvasY - centerY - (imgY - centerY) * this.scale;
+    // Calculate where that image point would now appear on screen
+    const newScreenPos = this.imageToScreen(imgPoint.x, imgPoint.y);
+
+    // Adjust pan to keep the point stationary
+    this.panX += screenX - newScreenPos.x;
+    this.panY += screenY - newScreenPos.y;
 
     this.draw();
   }
@@ -395,11 +386,9 @@ export class AlignmentPanel {
         e.preventDefault();
         this.isPanning = true;
 
-        // Convert screen delta to canvas internal coords
-        const cssScaleX = this.canvas.width / rect.width;
-        const cssScaleY = this.canvas.height / rect.height;
-        this.panX += dx * cssScaleX;
-        this.panY += dy * cssScaleY;
+        // Pan is in screen coordinates (CSS pixels)
+        this.panX += dx;
+        this.panY += dy;
 
         this.lastPanPoint = { x: this.touches[0].clientX, y: this.touches[0].clientY };
         this.draw();
@@ -428,17 +417,19 @@ export class AlignmentPanel {
   }
 
   /**
-   * Find point at position
+   * Find point at position (in image coordinates)
    */
   getPointAt(pos) {
-    const scaledRadius = Math.max(this.HIT_RADIUS, this.canvas.width / 40);
+    // Hit radius is 25px in screen space, convert to image space
+    const totalScale = this.baseScale * this.scale;
+    const hitRadius = 25 / totalScale;
 
     for (let i = 0; i < this.points.length; i++) {
       const dist = Math.sqrt(
         Math.pow(pos.x - this.points[i].x, 2) +
         Math.pow(pos.y - this.points[i].y, 2)
       );
-      if (dist < scaledRadius) {
+      if (dist < hitRadius) {
         return i;
       }
     }
@@ -488,15 +479,11 @@ export class AlignmentPanel {
           this.isPanning = true;
           this.lastPanPoint = { x: e.clientX, y: e.clientY };
         } else {
-          // Continue panning
-          const rect = this.canvas.getBoundingClientRect();
-          const cssScaleX = this.canvas.width / rect.width;
-          const cssScaleY = this.canvas.height / rect.height;
-
+          // Continue panning - pan is in screen coordinates (CSS pixels)
           const panDx = e.clientX - this.lastPanPoint.x;
           const panDy = e.clientY - this.lastPanPoint.y;
-          this.panX += panDx * cssScaleX;
-          this.panY += panDy * cssScaleY;
+          this.panX += panDx;
+          this.panY += panDy;
 
           this.lastPanPoint = { x: e.clientX, y: e.clientY };
           this.draw();
@@ -637,48 +624,57 @@ export class AlignmentPanel {
    * Draw the canvas with zoom/pan transforms
    */
   draw() {
+    if (!this.image || !this.containerWidth) return;
+
     const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const dpr = window.devicePixelRatio || 1;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, w, h);
-
-    // Save context and apply zoom/pan transforms
+    // Clear canvas (using CSS pixel dimensions)
     ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
-    // Move origin to center, apply pan and scale, then move back
-    ctx.translate(w / 2 + this.panX, h / 2 + this.panY);
-    ctx.scale(this.scale, this.scale);
-    ctx.translate(-w / 2, -h / 2);
+    // Combined scale
+    const totalScale = this.baseScale * this.scale;
 
-    // Draw image
-    if (this.image) {
-      ctx.drawImage(this.image, 0, 0);
-    }
+    // Center of container
+    const centerX = this.containerWidth / 2;
+    const centerY = this.containerHeight / 2;
 
-    // Draw guide lines (center cross)
+    // Image center
+    const imgCenterX = this.image.width / 2;
+    const imgCenterY = this.image.height / 2;
+
+    // Apply transforms: translate to center + pan, scale, translate by -imageCenter
+    ctx.translate(centerX + this.panX, centerY + this.panY);
+    ctx.scale(totalScale, totalScale);
+    ctx.translate(-imgCenterX, -imgCenterY);
+
+    // Draw image at origin (transforms handle positioning)
+    ctx.drawImage(this.image, 0, 0);
+
+    // Draw guide lines (center cross) on the image
     ctx.strokeStyle = this.colors.guide;
-    ctx.lineWidth = 1 / this.scale; // Keep consistent visual width
-    ctx.setLineDash([10 / this.scale, 10 / this.scale]);
+    ctx.lineWidth = 1 / totalScale;
+    ctx.setLineDash([10 / totalScale, 10 / totalScale]);
 
-    // Vertical center
+    // Vertical center of image
     ctx.beginPath();
-    ctx.moveTo(w / 2, 0);
-    ctx.lineTo(w / 2, h);
+    ctx.moveTo(imgCenterX, 0);
+    ctx.lineTo(imgCenterX, this.image.height);
     ctx.stroke();
 
-    // Horizontal center
+    // Horizontal center of image
     ctx.beginPath();
-    ctx.moveTo(0, h / 2);
-    ctx.lineTo(w, h / 2);
+    ctx.moveTo(0, imgCenterY);
+    ctx.lineTo(this.image.width, imgCenterY);
     ctx.stroke();
 
     ctx.setLineDash([]);
 
-    // Draw connecting lines
+    // Draw connecting lines between points
     if (this.points.length > 0) {
-      const lineWidth = Math.max(2, w / 300) / this.scale;
+      const lineWidth = 3 / totalScale;
 
       ctx.beginPath();
       ctx.lineWidth = lineWidth;
@@ -695,13 +691,22 @@ export class AlignmentPanel {
       ctx.stroke();
     }
 
-    // Draw corner points
-    const radius = Math.max(8, w / 80) / this.scale;
-    const lineWidth = Math.max(2, w / 300) / this.scale;
+    // Draw corner points - LARGE markers for easy visibility
+    // 20px radius in screen space, converted to image space
+    const markerRadius = 20 / totalScale;
+    const borderWidth = 3 / totalScale;
+    const fontSize = 16 / totalScale;
 
     this.points.forEach((p, i) => {
+      // Outer ring for better visibility
       ctx.beginPath();
-      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, markerRadius + borderWidth, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fill();
+
+      // Main marker
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, markerRadius, 0, Math.PI * 2);
 
       // Color based on state
       if (i === this.dragIndex) {
@@ -711,17 +716,16 @@ export class AlignmentPanel {
       } else {
         ctx.fillStyle = this.colors.point;
       }
-
       ctx.fill();
 
       // Border
-      ctx.lineWidth = lineWidth;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = borderWidth;
+      ctx.strokeStyle = this.colors.line;
       ctx.stroke();
 
       // Point number
       ctx.fillStyle = '#000';
-      ctx.font = `bold ${Math.max(12, radius * this.scale) / this.scale}px sans-serif`;
+      ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), p.x, p.y);
@@ -729,15 +733,18 @@ export class AlignmentPanel {
 
     ctx.restore();
 
-    // Draw zoom indicator (outside of transform)
+    // Draw zoom indicator (outside of image transform, but with DPR)
     if (this.scale !== 1.0) {
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(10, 10, 70, 24);
+      ctx.fillRect(10, 10, 70, 28);
       ctx.fillStyle = '#fff';
-      ctx.font = '12px sans-serif';
+      ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${Math.round(this.scale * 100)}%`, 18, 22);
+      ctx.fillText(`${Math.round(this.scale * 100)}%`, 18, 24);
+      ctx.restore();
     }
   }
 
