@@ -150,6 +150,13 @@
     <main id="viewport">
       <canvas id="canvas"></canvas>
 
+      <!-- 2D Preview overlay for alignment (shows actual output) -->
+      <div id="align-preview" style="display: none;">
+        <div class="preview-label">Output Preview</div>
+        <canvas id="align-preview-canvas"></canvas>
+        <div class="preview-dimensions" id="align-preview-dims"></div>
+      </div>
+
       <!-- 2D Overlay for perspective lines (legacy - kept for compatibility) -->
       <canvas id="overlay" style="display: none;"></canvas>
 

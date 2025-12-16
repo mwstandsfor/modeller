@@ -913,3 +913,51 @@ body {
     min-height: 50vh;
   }
 }
+
+/* 2D Preview for alignment */
+#align-preview {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  max-width: calc(100% - 40px);
+  max-height: calc(100% - 40px);
+}
+
+#align-preview .preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#align-preview-canvas {
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+#align-preview .preview-dimensions {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+#app.split-mode #align-preview {
+  max-height: calc(100% - 40px);
+}
+
+#app.split-mode #align-preview-canvas {
+  max-height: calc(50vh - 120px);
+}
