@@ -47,7 +47,6 @@ class App {
 
     // New split-panel alignment
     this.alignmentPanel = new AlignmentPanel();
-    this.alignmentPanel.onPointsChange = (data) => this.onAlignmentPointsChange(data);
     this.alignmentPanel.onConfirm = (data) => this.onAlignmentConfirm(data);
     this.alignmentPanel.onSkip = () => this.skipPerspective();
 
@@ -575,9 +574,6 @@ class App {
       return;
     }
 
-    // Hide the 2D preview if visible
-    this.hide2DPreview();
-
     try {
       // Create canvas from original image (no correction)
       const canvas = document.createElement('canvas');
@@ -898,112 +894,11 @@ class App {
   }
 
   /**
-   * Handle alignment panel points change (for live preview)
-   * @param {Object} data - { points, ratioScale, image }
-   */
-  async onAlignmentPointsChange(data) {
-    const { points, ratioScale, image } = data;
-
-    try {
-      // Wait for OpenCV if needed
-      if (!isOpenCVReady()) {
-        await waitForOpenCV();
-      }
-
-      // Get dimensions from the alignment canvas
-      const canvasWidth = image.width;
-      const canvasHeight = image.height;
-
-      const result = await perspectiveTransform(
-        points,
-        image,
-        canvasWidth,
-        canvasHeight,
-        ratioScale
-      );
-
-      // Update the 2D preview
-      this.update2DPreview(result.canvas);
-
-    } catch (error) {
-      console.error('Failed to update alignment preview:', error);
-    }
-  }
-
-  /**
-   * Update 2D preview canvas (shows actual output dimensions)
-   */
-  update2DPreview(sourceCanvas) {
-    const previewContainer = document.getElementById('align-preview');
-    const previewCanvas = document.getElementById('align-preview-canvas');
-    const previewDims = document.getElementById('align-preview-dims');
-
-    if (!previewContainer || !previewCanvas) return;
-
-    // Show preview container
-    previewContainer.style.display = 'flex';
-
-    // Hide original image plane
-    if (this.imagePlane && this.imagePlane.mesh.visible) {
-      this.imagePlane.mesh.visible = false;
-    }
-
-    // Set canvas dimensions to match source
-    previewCanvas.width = sourceCanvas.width;
-    previewCanvas.height = sourceCanvas.height;
-
-    // Draw the preview
-    const ctx = previewCanvas.getContext('2d');
-    ctx.drawImage(sourceCanvas, 0, 0);
-
-    // Update dimensions display
-    if (previewDims) {
-      previewDims.textContent = `${sourceCanvas.width} × ${sourceCanvas.height} px`;
-    }
-
-    // Scale canvas display to fit in viewport while maintaining aspect ratio
-    const maxDisplayWidth = Math.min(window.innerWidth * 0.4, 600);
-    const maxDisplayHeight = Math.min(window.innerHeight * 0.6, 500);
-
-    const aspect = sourceCanvas.width / sourceCanvas.height;
-    let displayWidth, displayHeight;
-
-    if (aspect > maxDisplayWidth / maxDisplayHeight) {
-      displayWidth = maxDisplayWidth;
-      displayHeight = maxDisplayWidth / aspect;
-    } else {
-      displayHeight = maxDisplayHeight;
-      displayWidth = maxDisplayHeight * aspect;
-    }
-
-    previewCanvas.style.width = `${displayWidth}px`;
-    previewCanvas.style.height = `${displayHeight}px`;
-  }
-
-  /**
-   * Hide the 2D preview
-   */
-  hide2DPreview() {
-    const previewContainer = document.getElementById('align-preview');
-    if (previewContainer) {
-      previewContainer.style.display = 'none';
-    }
-
-    // Show original image plane again
-    if (this.imagePlane && !this.imagePlane.mesh.visible) {
-      this.imagePlane.mesh.visible = true;
-    }
-  }
-
-  /**
    * Handle alignment panel confirm
    * @param {Object} data - { points, ratioScale, image }
    */
   async onAlignmentConfirm(data) {
     const { points, ratioScale, image } = data;
-
-    // Hide the 2D preview before creating mesh
-    this.hide2DPreview();
 
     try {
       // Wait for OpenCV if needed
