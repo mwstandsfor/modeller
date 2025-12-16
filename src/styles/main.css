@@ -786,6 +786,8 @@ body {
   max-width: calc(100% - 40px);
   max-height: calc(100% - 40px);
   box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+  touch-action: none; /* Prevent browser handling of touch gestures for pinch-zoom/pan */
+  cursor: crosshair;
 }
 
 #align-panel .panel-footer {
@@ -903,14 +905,28 @@ body {
     flex-direction: column;
   }
 
-  #align-panel {
+  #app.split-mode #align-panel {
+    flex: 1;
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 50vh;
+    max-height: none;
+    height: 50%;
+    min-height: 0;
   }
 
   #app.split-mode #viewport {
-    min-height: 50vh;
+    flex: 1;
+    height: 50%;
+    min-height: 0;
+  }
+
+  /* Make markers easier to tap on touch devices */
+  #align-panel .panel-content {
+    padding: 10px;
+  }
+
+  #align-canvas {
+    touch-action: none; /* Prevent browser handling of touch gestures */
   }
 }
 

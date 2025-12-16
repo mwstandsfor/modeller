@@ -2,6 +2,7 @@
  * AlignmentPanel - Split view panel for perspective correction
  * Left panel shows source image with 4-corner selection
  * Right panel (3D viewport) shows live preview of rectified result
+ * Supports zoom/pan via mouse wheel, pinch gestures, and drag
  */
 export class AlignmentPanel {
   constructor() {
@@ -18,6 +19,7 @@ export class AlignmentPanel {
     this.btnClear = document.getElementById('align-clear');
     this.btnSkip = document.getElementById('align-skip');
     this.btnConfirm = document.getElementById('align-confirm');
+    this.btnResetView = document.getElementById('align-reset-view');
 
     // State
     this.image = null;
@@ -26,6 +28,25 @@ export class AlignmentPanel {
     this.dragIndex = -1;
     this.hoverIndex = -1;
     this.ratioScale = 1.0;
+
+    // Zoom/Pan state
+    this.scale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.isPanning = false;
+    this.lastPanPoint = null;
+    this.minScale = 0.5;
+    this.maxScale = 5.0;
+
+    // Touch gesture state
+    this.touches = [];
+    this.initialPinchDistance = null;
+    this.initialScale = 1.0;
+
+    // Pointer state for tap vs drag detection
+    this.pointerStartPos = null;
+    this.pointerStartImagePos = null;
+    this.didMove = false;
 
     // Hit detection
     this.HIT_RADIUS = 20;
@@ -50,6 +71,10 @@ export class AlignmentPanel {
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handleRatioChange = this.handleRatioChange.bind(this);
+    this.handleWheel = this.handleWheel.bind(this);
+    this.handleTouchStart = this.handleTouchStart.bind(this);
+    this.handleTouchMove = this.handleTouchMove.bind(this);
+    this.handleTouchEnd = this.handleTouchEnd.bind(this);
   }
 
   /**
@@ -63,20 +88,37 @@ export class AlignmentPanel {
     this.ratioSlider.value = 1.0;
     this.ratioValue.textContent = '1.00';
 
+    // Reset zoom/pan state
+    this.scale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.isPanning = false;
+    this.lastPanPoint = null;
+
     // Enter split mode
     this.app.classList.add('split-mode');
 
     // Setup canvas
     this.fitCanvasToImage();
 
-    // Add event listeners
+    // Add pointer event listeners (for mouse and single touch)
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
     this.canvas.addEventListener('pointerup', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
 
+    // Mouse wheel zoom
+    this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+
+    // Touch events for pinch-to-zoom (need raw touch events for multi-touch)
+    this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+    this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+    this.canvas.addEventListener('touchend', this.handleTouchEnd);
+    this.canvas.addEventListener('touchcancel', this.handleTouchEnd);
+
     this.ratioSlider.addEventListener('input', this.handleRatioChange);
 
+    this.btnResetView.addEventListener('click', () => this.resetView());
     this.btnClear.addEventListener('click', () => this.clearPoints());
     this.btnSkip.addEventListener('click', () => this.skip());
     this.btnConfirm.addEventListener('click', () => this.confirm());
@@ -105,6 +147,12 @@ export class AlignmentPanel {
     this.canvas.removeEventListener('pointermove', this.handlePointerMove);
     this.canvas.removeEventListener('pointerup', this.handlePointerUp);
     this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
+
+    this.canvas.removeEventListener('wheel', this.handleWheel);
+    this.canvas.removeEventListener('touchstart', this.handleTouchStart);
+    this.canvas.removeEventListener('touchmove', this.handleTouchMove);
+    this.canvas.removeEventListener('touchend', this.handleTouchEnd);
+    this.canvas.removeEventListener('touchcancel', this.handleTouchEnd);
 
     this.ratioSlider.removeEventListener('input', this.handleRatioChange);
 
@@ -160,17 +208,223 @@ export class AlignmentPanel {
   }
 
   /**
-   * Get canvas coordinates from pointer event
+   * Get image coordinates from screen coordinates (accounting for zoom/pan)
    */
   getPoint(e) {
     const rect = this.canvas.getBoundingClientRect();
-    const scaleX = this.canvas.width / rect.width;
-    const scaleY = this.canvas.height / rect.height;
+
+    // Screen position relative to canvas element
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+
+    // Convert to image coordinates (accounting for zoom/pan)
+    return this.screenToImage(screenX, screenY);
+  }
+
+  /**
+   * Convert screen coordinates (relative to canvas element) to image coordinates
+   */
+  screenToImage(screenX, screenY) {
+    const rect = this.canvas.getBoundingClientRect();
+
+    // First convert screen coords to canvas internal coords (accounting for CSS scaling)
+    const cssScaleX = this.canvas.width / rect.width;
+    const cssScaleY = this.canvas.height / rect.height;
+
+    const canvasX = screenX * cssScaleX;
+    const canvasY = screenY * cssScaleY;
+
+    // Center of canvas in internal coords
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+
+    // Apply inverse zoom/pan transform to get image coordinates
+    // The draw transform is: translate(center + pan), scale, translate(-center)
+    // Inverse is: translate(center), scale^-1, translate(-center - pan)
+    const imageX = (canvasX - centerX - this.panX) / this.scale + centerX;
+    const imageY = (canvasY - centerY - this.panY) / this.scale + centerY;
+
+    return { x: imageX, y: imageY };
+  }
+
+  /**
+   * Convert image coordinates to screen coordinates (relative to canvas element)
+   */
+  imageToScreen(imageX, imageY) {
+    const rect = this.canvas.getBoundingClientRect();
+
+    // Center of canvas in internal coords
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+
+    // Apply zoom/pan transform
+    const canvasX = (imageX - centerX) * this.scale + centerX + this.panX;
+    const canvasY = (imageY - centerY) * this.scale + centerY + this.panY;
+
+    // Convert canvas internal coords to screen coords
+    const cssScaleX = rect.width / this.canvas.width;
+    const cssScaleY = rect.height / this.canvas.height;
 
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+      x: canvasX * cssScaleX,
+      y: canvasY * cssScaleY
     };
+  }
+
+  /**
+   * Get client coordinates from touch
+   */
+  getTouchCenter(touches) {
+    if (touches.length === 1) {
+      return { x: touches[0].clientX, y: touches[0].clientY };
+    }
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+  }
+
+  /**
+   * Get distance between two touches
+   */
+  getTouchDistance(touches) {
+    if (touches.length < 2) return 0;
+    const dx = touches[1].clientX - touches[0].clientX;
+    const dy = touches[1].clientY - touches[0].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Zoom at a specific point (keeps that point stationary)
+   * @param {number} screenX - Screen X relative to canvas element
+   * @param {number} screenY - Screen Y relative to canvas element
+   * @param {number} newScale - New zoom scale
+   */
+  zoomAt(screenX, screenY, newScale) {
+    const rect = this.canvas.getBoundingClientRect();
+
+    // Convert screen coords to canvas internal coords
+    const cssScaleX = this.canvas.width / rect.width;
+    const cssScaleY = this.canvas.height / rect.height;
+    const canvasX = screenX * cssScaleX;
+    const canvasY = screenY * cssScaleY;
+
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+
+    // Clamp scale
+    newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
+
+    // Calculate the image point under the cursor before zoom
+    const imgX = (canvasX - centerX - this.panX) / this.scale + centerX;
+    const imgY = (canvasY - centerY - this.panY) / this.scale + centerY;
+
+    // Update scale
+    this.scale = newScale;
+
+    // Calculate new pan to keep the same image point under the cursor
+    this.panX = canvasX - centerX - (imgX - centerX) * this.scale;
+    this.panY = canvasY - centerY - (imgY - centerY) * this.scale;
+
+    this.draw();
+  }
+
+  /**
+   * Handle mouse wheel for zoom
+   */
+  handleWheel(e) {
+    e.preventDefault();
+
+    const rect = this.canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+
+    // Calculate new scale
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = this.scale * zoomFactor;
+
+    this.zoomAt(screenX, screenY, newScale);
+  }
+
+  /**
+   * Handle touch start for pinch-to-zoom
+   */
+  handleTouchStart(e) {
+    this.touches = Array.from(e.touches);
+
+    if (this.touches.length === 2) {
+      // Start pinch gesture
+      e.preventDefault();
+      this.initialPinchDistance = this.getTouchDistance(this.touches);
+      this.initialScale = this.scale;
+      this.isPanning = false;
+    } else if (this.touches.length === 1) {
+      // Could be either a tap to place point or start of pan
+      // We'll determine in touchmove
+      this.lastPanPoint = { x: this.touches[0].clientX, y: this.touches[0].clientY };
+    }
+  }
+
+  /**
+   * Handle touch move for pinch-to-zoom and pan
+   */
+  handleTouchMove(e) {
+    this.touches = Array.from(e.touches);
+    const rect = this.canvas.getBoundingClientRect();
+
+    if (this.touches.length === 2 && this.initialPinchDistance) {
+      // Pinch zoom
+      e.preventDefault();
+
+      const currentDistance = this.getTouchDistance(this.touches);
+      const scaleFactor = currentDistance / this.initialPinchDistance;
+      const newScale = this.initialScale * scaleFactor;
+
+      const center = this.getTouchCenter(this.touches);
+      const screenX = center.x - rect.left;
+      const screenY = center.y - rect.top;
+
+      this.zoomAt(screenX, screenY, newScale);
+    } else if (this.touches.length === 1 && this.lastPanPoint && !this.isDragging) {
+      // Pan with single finger (if not dragging a point)
+      const dx = this.touches[0].clientX - this.lastPanPoint.x;
+      const dy = this.touches[0].clientY - this.lastPanPoint.y;
+
+      // Only start panning if movement is significant
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || this.isPanning) {
+        e.preventDefault();
+        this.isPanning = true;
+
+        // Convert screen delta to canvas internal coords
+        const cssScaleX = this.canvas.width / rect.width;
+        const cssScaleY = this.canvas.height / rect.height;
+        this.panX += dx * cssScaleX;
+        this.panY += dy * cssScaleY;
+
+        this.lastPanPoint = { x: this.touches[0].clientX, y: this.touches[0].clientY };
+        this.draw();
+      }
+    }
+  }
+
+  /**
+   * Handle touch end
+   */
+  handleTouchEnd(e) {
+    // If we were pinching and now have fewer than 2 touches, reset pinch state
+    if (this.initialPinchDistance && e.touches.length < 2) {
+      this.initialPinchDistance = null;
+      this.initialScale = this.scale;
+    }
+
+    // If we were panning with single touch and it ended without significant movement, treat as tap
+    if (this.touches.length === 1 && e.touches.length === 0 && !this.isPanning) {
+      // Let pointer events handle the tap
+    }
+
+    this.touches = Array.from(e.touches);
+    this.isPanning = false;
+    this.lastPanPoint = null;
   }
 
   /**
@@ -192,23 +446,25 @@ export class AlignmentPanel {
   }
 
   handlePointerDown(e) {
+    // Ignore if multi-touch (pinch gesture handled by touch events)
+    if (e.pointerType === 'touch' && this.touches.length > 1) return;
+
     e.preventDefault();
     const pos = this.getPoint(e);
     const index = this.getPointAt(pos);
+
+    // Record start position for tap detection
+    this.pointerStartPos = { x: e.clientX, y: e.clientY };
+    this.pointerStartImagePos = pos;
+    this.didMove = false;
 
     if (index !== -1) {
       // Start dragging existing point
       this.isDragging = true;
       this.dragIndex = index;
-    } else if (this.points.length < 4) {
-      // Add new point
-      this.points.push(pos);
-      this.updateUI();
-      this.draw();
-
-      if (this.points.length === 4) {
-        this.notifyPointsChange();
-      }
+    } else {
+      // Potential tap to add point, or pan - we'll decide on pointerup
+      this.isPanning = false;
     }
   }
 
@@ -216,9 +472,38 @@ export class AlignmentPanel {
     const pos = this.getPoint(e);
 
     if (this.isDragging && this.dragIndex !== -1) {
+      // Dragging a point
       this.points[this.dragIndex] = pos;
       this.draw();
+    } else if (this.pointerStartPos) {
+      // Check if we've moved enough to start panning
+      const dx = e.clientX - this.pointerStartPos.x;
+      const dy = e.clientY - this.pointerStartPos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > 10) {
+        this.didMove = true;
+
+        if (!this.isPanning) {
+          this.isPanning = true;
+          this.lastPanPoint = { x: e.clientX, y: e.clientY };
+        } else {
+          // Continue panning
+          const rect = this.canvas.getBoundingClientRect();
+          const cssScaleX = this.canvas.width / rect.width;
+          const cssScaleY = this.canvas.height / rect.height;
+
+          const panDx = e.clientX - this.lastPanPoint.x;
+          const panDy = e.clientY - this.lastPanPoint.y;
+          this.panX += panDx * cssScaleX;
+          this.panY += panDy * cssScaleY;
+
+          this.lastPanPoint = { x: e.clientX, y: e.clientY };
+          this.draw();
+        }
+      }
     } else {
+      // Just hovering - update hover state
       const newHoverIndex = this.getPointAt(pos);
       if (newHoverIndex !== this.hoverIndex) {
         this.hoverIndex = newHoverIndex;
@@ -236,7 +521,23 @@ export class AlignmentPanel {
       if (this.points.length === 4) {
         this.notifyPointsChange();
       }
+    } else if (!this.didMove && this.pointerStartImagePos && this.points.length < 4) {
+      // This was a tap - add a new point at the start position
+      this.points.push(this.pointerStartImagePos);
+      this.updateUI();
+      this.draw();
+
+      if (this.points.length === 4) {
+        this.notifyPointsChange();
+      }
     }
+
+    // Reset state
+    this.isPanning = false;
+    this.pointerStartPos = null;
+    this.pointerStartImagePos = null;
+    this.didMove = false;
+    this.lastPanPoint = null;
   }
 
   handleRatioChange(e) {
@@ -333,40 +634,51 @@ export class AlignmentPanel {
   }
 
   /**
-   * Draw the canvas
+   * Draw the canvas with zoom/pan transforms
    */
   draw() {
     const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
 
-    // Clear and draw image
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // Clear canvas
+    ctx.clearRect(0, 0, w, h);
 
+    // Save context and apply zoom/pan transforms
+    ctx.save();
+
+    // Move origin to center, apply pan and scale, then move back
+    ctx.translate(w / 2 + this.panX, h / 2 + this.panY);
+    ctx.scale(this.scale, this.scale);
+    ctx.translate(-w / 2, -h / 2);
+
+    // Draw image
     if (this.image) {
       ctx.drawImage(this.image, 0, 0);
     }
 
     // Draw guide lines (center cross)
     ctx.strokeStyle = this.colors.guide;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([10, 10]);
+    ctx.lineWidth = 1 / this.scale; // Keep consistent visual width
+    ctx.setLineDash([10 / this.scale, 10 / this.scale]);
 
     // Vertical center
     ctx.beginPath();
-    ctx.moveTo(this.canvas.width / 2, 0);
-    ctx.lineTo(this.canvas.width / 2, this.canvas.height);
+    ctx.moveTo(w / 2, 0);
+    ctx.lineTo(w / 2, h);
     ctx.stroke();
 
     // Horizontal center
     ctx.beginPath();
-    ctx.moveTo(0, this.canvas.height / 2);
-    ctx.lineTo(this.canvas.width, this.canvas.height / 2);
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
     ctx.stroke();
 
     ctx.setLineDash([]);
 
     // Draw connecting lines
     if (this.points.length > 0) {
-      const lineWidth = Math.max(2, this.canvas.width / 300);
+      const lineWidth = Math.max(2, w / 300) / this.scale;
 
       ctx.beginPath();
       ctx.lineWidth = lineWidth;
@@ -384,8 +696,8 @@ export class AlignmentPanel {
     }
 
     // Draw corner points
-    const radius = Math.max(8, this.canvas.width / 80);
-    const lineWidth = Math.max(2, this.canvas.width / 300);
+    const radius = Math.max(8, w / 80) / this.scale;
+    const lineWidth = Math.max(2, w / 300) / this.scale;
 
     this.points.forEach((p, i) => {
       ctx.beginPath();
@@ -409,10 +721,33 @@ export class AlignmentPanel {
 
       // Point number
       ctx.fillStyle = '#000';
-      ctx.font = `bold ${Math.max(12, radius)}px sans-serif`;
+      ctx.font = `bold ${Math.max(12, radius * this.scale) / this.scale}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), p.x, p.y);
     });
+
+    ctx.restore();
+
+    // Draw zoom indicator (outside of transform)
+    if (this.scale !== 1.0) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(10, 10, 70, 24);
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.round(this.scale * 100)}%`, 18, 22);
+    }
+  }
+
+  /**
+   * Reset zoom and pan to default
+   */
+  resetView() {
+    this.scale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.draw();
   }
 }
