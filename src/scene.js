@@ -93,7 +93,7 @@ export class SceneManager {
 
   initGrid() {
     // Grid aligned with XY plane (same as image plane)
-    this.grid = new THREE.GridHelper(10, 20, 0x444444, 0x333333);
+    this.grid = new THREE.GridHelper(10, 100, 0x444444, 0x333333);
     // Rotate to XY plane (default is XZ)
     this.grid.rotation.x = Math.PI / 2;
     this.grid.position.z = -0.001; // Slightly behind origin to avoid z-fighting
@@ -112,12 +112,19 @@ export class SceneManager {
   createAxisHelper() {
     const size = 1;
 
+    // Colors matching the Figma design
+    const colors = {
+      x: { main: 0xEA1941, dark: 0x570011 },  // Red
+      y: { main: 0x629600, dark: 0x1E2F00 },  // Green
+      z: { main: 0x2870DF, dark: 0x002763 }   // Blue
+    };
+
     // X axis - Red
     const xGeom = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(size, 0, 0)
     ]);
-    const xMat = new THREE.LineBasicMaterial({ color: 0xff4444, linewidth: 3 });
+    const xMat = new THREE.LineBasicMaterial({ color: colors.x.main, linewidth: 3 });
     this.axisX = new THREE.Line(xGeom, xMat);
 
     // Y axis - Green
@@ -125,7 +132,7 @@ export class SceneManager {
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, size, 0)
     ]);
-    const yMat = new THREE.LineBasicMaterial({ color: 0x44ff44, linewidth: 3 });
+    const yMat = new THREE.LineBasicMaterial({ color: colors.y.main, linewidth: 3 });
     this.axisY = new THREE.Line(yGeom, yMat);
 
     // Z axis - Blue
@@ -133,13 +140,14 @@ export class SceneManager {
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, size)
     ]);
-    const zMat = new THREE.LineBasicMaterial({ color: 0x4444ff, linewidth: 3 });
+    const zMat = new THREE.LineBasicMaterial({ color: colors.z.main, linewidth: 3 });
     this.axisZ = new THREE.Line(zGeom, zMat);
 
     this.scene.add(this.axisX);
     this.scene.add(this.axisY);
     this.scene.add(this.axisZ);
   }
+
 
   /**
    * Create axis orientation gizmo (renders in corner)
@@ -168,7 +176,7 @@ export class SceneManager {
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(lineLength, 0, 0)
       ]),
-      new THREE.LineBasicMaterial({ color: colors.x.main, linewidth: 2 })
+      new THREE.LineBasicMaterial({ color: colors.x.main, linewidth: 10 })
     );
     this.gizmoScene.add(xLine);
 
@@ -178,7 +186,7 @@ export class SceneManager {
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(0, lineLength, 0)
       ]),
-      new THREE.LineBasicMaterial({ color: colors.y.main, linewidth: 2 })
+      new THREE.LineBasicMaterial({ color: colors.y.main, linewidth: 10 })
     );
     this.gizmoScene.add(yLine);
 
@@ -188,7 +196,7 @@ export class SceneManager {
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(0, 0, lineLength)
       ]),
-      new THREE.LineBasicMaterial({ color: colors.z.main, linewidth: 2 })
+      new THREE.LineBasicMaterial({ color: colors.z.main, linewidth: 10 })
     );
     this.gizmoScene.add(zLine);
 
@@ -265,7 +273,7 @@ export class SceneManager {
 
     // Set viewport for gizmo (bottom-right corner)
     const gizmoSize = 100;
-    const margin = 12;
+    const margin = 16;
     const container = this.canvas.parentElement;
     const gizmoX = container.clientWidth - gizmoSize - margin;
 

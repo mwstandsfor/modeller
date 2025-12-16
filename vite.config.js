@@ -33,8 +33,16 @@ export default defineConfig({
     })
   ],
   server: {
-    host: true,
-    port: 3001
+    host: `0.0.0.0`,
+    port: 3001,
+    strictPort: true,
+    hmr: {
+      protocol: `wss`,
+      host: `lazyimage.mwstandsfor.com`
+    },
+    allowedHosts: [ 
+      'lazyimage.mwstandsfor.com'
+    ]
   },
   build: {
     outDir: 'dist',
