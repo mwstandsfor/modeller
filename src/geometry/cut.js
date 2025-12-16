@@ -320,10 +320,24 @@ export class CutOverlay {
     this.hoverFace = null;      // Face being hovered
     this.isActive = false;
 
-    // Style 
+    // Mode: 'edge' or 'face'
+    this.mode = 'edge';
+
+    // Face mode state
+    this.faceStartPoint = null;   // 3D point on face for first click
+    this.faceEndPoint = null;     // 3D point on face for second click
+    this.faceHoverPoint = null;   // 3D point being hovered in face mode
+
+    // Mode toolbar elements
+    this.modeToolbar = document.getElementById('mode-toolbar');
+    this.modeEdgeBtn = document.getElementById('mode-edge');
+    this.modeFaceBtn = document.getElementById('mode-face');
+
+    // Style
     this.lineColor = '#ff7f29bd';       // for cut line
     this.edgeColor = '#ff7f29ff';   //FFC64Cff     // for edge highlight
     this.invalidColor = '#EA1941';    // Red for invalid
+    this.facePointColor = '#4CAF50';  // Green for face points
 
     // Callbacks
     this.onCutComplete = null;
@@ -340,6 +354,7 @@ export class CutOverlay {
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerClick = this.handlePointerClick.bind(this);
+    this.handleModeChange = this.handleModeChange.bind(this);
 
     window.addEventListener('resize', this.handleResize);
     this.handleResize();
@@ -364,6 +379,13 @@ export class CutOverlay {
     // Use window for pointerup to catch it even when pointer events are disabled on overlay
     window.addEventListener('pointerup', this.handlePointerUp);
 
+    // Show mode toolbar and add listeners
+    if (this.modeToolbar) {
+      this.modeToolbar.style.display = 'flex';
+      this.modeEdgeBtn.addEventListener('click', this.handleModeChange);
+      this.modeFaceBtn.addEventListener('click', this.handleModeChange);
+    }
+
     // Enable controls for zooming (wheel events forwarded globally from main.js)
     this.sceneManager.setControlsEnabled(true);
 
@@ -381,10 +403,37 @@ export class CutOverlay {
     this.canvas.removeEventListener('click', this.handlePointerClick);
     window.removeEventListener('pointerup', this.handlePointerUp);
 
+    // Hide mode toolbar and remove listeners
+    if (this.modeToolbar) {
+      this.modeToolbar.style.display = 'none';
+      this.modeEdgeBtn.removeEventListener('click', this.handleModeChange);
+      this.modeFaceBtn.removeEventListener('click', this.handleModeChange);
+    }
+
     // Ensure controls are re-enabled and pointer events restored
     this.canvas.style.pointerEvents = 'auto';
     this.isRotating = false;
     this.sceneManager.setControlsEnabled(true);
+  }
+
+  /**
+   * Handle mode toggle button click
+   */
+  handleModeChange(e) {
+    const btn = e.currentTarget;
+    const newMode = btn.id === 'mode-edge' ? 'edge' : 'face';
+
+    if (newMode !== this.mode) {
+      this.mode = newMode;
+
+      // Update button states
+      this.modeEdgeBtn.classList.toggle('active', newMode === 'edge');
+      this.modeFaceBtn.classList.toggle('active', newMode === 'face');
+
+      // Reset state when switching modes
+      this.reset();
+      this.draw();
+    }
   }
 
   handleResize() {
@@ -430,6 +479,144 @@ export class CutOverlay {
   }
 
   /**
+   * Raycast to find the hit point on a face (for face mode)
+   */
+  findFaceAtPosition(clientX, clientY) {
+    if (!this.editableMesh || !this.editableMesh.mesh) return null;
+
+    const ndc = this.sceneManager.screenToNDC(clientX, clientY);
+    const raycaster = this.sceneManager.getRaycaster(ndc.x, ndc.y);
+    const intersects = raycaster.intersectObject(this.editableMesh.mesh);
+
+    if (intersects.length === 0) return null;
+
+    const hitPoint = intersects[0].point;
+    const faceIndex = intersects[0].faceIndex;
+
+    // Find which face was hit using triangle-to-face mapping
+    let hitFace = null;
+    if (this.editableMesh.findFaceByTriangleIndex) {
+      hitFace = this.editableMesh.findFaceByTriangleIndex(faceIndex);
+    }
+
+    // Fallback: find face containing the hit point
+    if (!hitFace) {
+      for (const face of this.editableMesh.faces) {
+        if (this.editableMesh.isPointInFace(hitPoint, face)) {
+          hitFace = face;
+          break;
+        }
+      }
+    }
+
+    return { point: hitPoint.clone(), face: hitFace };
+  }
+
+  /**
+   * Calculate where a line through two points intersects the edges of faces
+   * Returns the two edge intersection points that are closest to the input points
+   */
+  calculateCutFromFacePoints(point1, point2) {
+    if (!this.editableMesh) return null;
+
+    const faces = this.editableMesh.faces;
+    const allIntersections = [];
+
+    // Find all edge intersections
+    for (const face of faces) {
+      const normal = face.normal || this.getFaceNormal(face);
+      const edges = face.getEdges();
+
+      for (const edge of edges) {
+        const intersection = this.lineEdgeIntersection3D(point1, point2, edge.start, edge.end, normal);
+        if (intersection) {
+          allIntersections.push({
+            point: intersection.point,
+            t: intersection.t,
+            edge: edge,
+            face: face
+          });
+        }
+      }
+    }
+
+    if (allIntersections.length < 2) return null;
+
+    // Find the intersection closest to point1 and point2
+    let closestToStart = null;
+    let closestToEnd = null;
+    let minDistStart = Infinity;
+    let minDistEnd = Infinity;
+
+    for (const intersection of allIntersections) {
+      const distToStart = intersection.point.distanceTo(point1);
+      const distToEnd = intersection.point.distanceTo(point2);
+
+      if (distToStart < minDistStart) {
+        minDistStart = distToStart;
+        closestToStart = intersection;
+      }
+      if (distToEnd < minDistEnd) {
+        minDistEnd = distToEnd;
+        closestToEnd = intersection;
+      }
+    }
+
+    // Make sure we have two different intersections
+    if (!closestToStart || !closestToEnd || closestToStart === closestToEnd) {
+      return null;
+    }
+
+    return {
+      startPoint: closestToStart.point,
+      endPoint: closestToEnd.point,
+      startEdge: closestToStart,
+      endEdge: closestToEnd
+    };
+  }
+
+  /**
+   * Line-edge intersection in 3D (similar to existing but returns result directly)
+   */
+  lineEdgeIntersection3D(linePoint1, linePoint2, edgeStart, edgeEnd, faceNormal) {
+    // Determine dominant plane for projection
+    let u = 'x', v = 'y';
+    const nx = Math.abs(faceNormal.x);
+    const ny = Math.abs(faceNormal.y);
+    const nz = Math.abs(faceNormal.z);
+
+    if (nx > ny && nx > nz) { u = 'y'; v = 'z'; }
+    else if (ny > nx && ny > nz) { u = 'x'; v = 'z'; }
+    else { u = 'x'; v = 'y'; }
+
+    // Project to 2D
+    const a1 = linePoint1[u], b1 = linePoint1[v];
+    const a2 = linePoint2[u], b2 = linePoint2[v];
+    const a3 = edgeStart[u], b3 = edgeStart[v];
+    const a4 = edgeEnd[u], b4 = edgeEnd[v];
+
+    const denom = (a1 - a2) * (b3 - b4) - (b1 - b2) * (a3 - a4);
+    if (Math.abs(denom) < 0.00001) return null;
+
+    const mu = -((a1 - a2) * (b1 - b3) - (b1 - b2) * (a1 - a3)) / denom;
+
+    // Must be inside edge (with small epsilon)
+    if (mu < 0.001 || mu > 0.999) return null;
+
+    const point = new THREE.Vector3().lerpVectors(edgeStart, edgeEnd, mu);
+    return { point, t: mu };
+  }
+
+  getFaceNormal(face) {
+    const vA = face.vertices[0];
+    const vB = face.vertices[1];
+    const vC = face.vertices[2];
+    const cb = new THREE.Vector3().subVectors(vC, vB);
+    const ab = new THREE.Vector3().subVectors(vA, vB);
+    return cb.cross(ab).normalize();
+  }
+
+  /**
    * Convert 3D point to screen coordinates
    */
   worldToScreen(point) {
@@ -444,6 +631,27 @@ export class CutOverlay {
   }
 
   handlePointerDown(e) {
+    // Handle face mode
+    if (this.mode === 'face') {
+      const result = this.findFaceAtPosition(e.clientX, e.clientY);
+
+      if (!result || !result.face) {
+        // Clicked on empty space - reset state if we had a start point
+        if (this.faceStartPoint) {
+          this.reset();
+          this.draw();
+        }
+
+        // Allow 3D rotation
+        this.enableRotation(e);
+        return;
+      }
+
+      // Face mode click is handled in handlePointerClick
+      return;
+    }
+
+    // Edge mode (original behavior)
     const result = this.findEdgeAtPosition(e.clientX, e.clientY);
 
     if (!result) {
@@ -453,27 +661,8 @@ export class CutOverlay {
         this.draw();
       }
 
-      // Allow 3D rotation when clicking on empty space
-      // Disable pointer events on overlay and dispatch event to 3D canvas
-      this.canvas.style.pointerEvents = 'none';
-      this.sceneManager.setControlsEnabled(true);
-      this.isRotating = true;
-
-      // Dispatch a new pointerdown event to the 3D canvas so OrbitControls receives it
-      const renderer = this.sceneManager.renderer;
-      if (renderer && renderer.domElement) {
-        const syntheticEvent = new PointerEvent('pointerdown', {
-          bubbles: true,
-          cancelable: true,
-          clientX: e.clientX,
-          clientY: e.clientY,
-          pointerId: e.pointerId,
-          pointerType: e.pointerType,
-          button: e.button,
-          buttons: e.buttons
-        });
-        renderer.domElement.dispatchEvent(syntheticEvent);
-      }
+      // Allow 3D rotation
+      this.enableRotation(e);
       return;
     }
 
@@ -485,6 +674,31 @@ export class CutOverlay {
       this.startFace = result.face;
 
       this.draw();
+    }
+  }
+
+  /**
+   * Enable 3D rotation by disabling overlay pointer events
+   */
+  enableRotation(e) {
+    this.canvas.style.pointerEvents = 'none';
+    this.sceneManager.setControlsEnabled(true);
+    this.isRotating = true;
+
+    // Dispatch a new pointerdown event to the 3D canvas so OrbitControls receives it
+    const renderer = this.sceneManager.renderer;
+    if (renderer && renderer.domElement) {
+      const syntheticEvent = new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        button: e.button,
+        buttons: e.buttons
+      });
+      renderer.domElement.dispatchEvent(syntheticEvent);
     }
   }
 
@@ -511,6 +725,23 @@ export class CutOverlay {
   }
 
   handlePointerMove(e) {
+    // Handle face mode
+    if (this.mode === 'face') {
+      const result = this.findFaceAtPosition(e.clientX, e.clientY);
+
+      if (result && result.face) {
+        this.faceHoverPoint = result.point;
+        this.hoverFace = result.face;
+      } else {
+        this.faceHoverPoint = null;
+        this.hoverFace = null;
+      }
+
+      this.draw();
+      return;
+    }
+
+    // Edge mode (original behavior)
     const result = this.findEdgeAtPosition(e.clientX, e.clientY);
 
     if (result) {
@@ -527,6 +758,49 @@ export class CutOverlay {
   }
 
   handlePointerClick(e) {
+    // Handle face mode
+    if (this.mode === 'face') {
+      const result = this.findFaceAtPosition(e.clientX, e.clientY);
+      if (!result || !result.face) return;
+
+      // First click - set start point
+      if (!this.faceStartPoint) {
+        this.faceStartPoint = result.point.clone();
+        this.startFace = result.face;
+        this.draw();
+        return;
+      }
+
+      // Second click - calculate cut from face points
+      this.faceEndPoint = result.point.clone();
+
+      // Calculate where the line through the two points intersects edges
+      const cutResult = this.calculateCutFromFacePoints(this.faceStartPoint, this.faceEndPoint);
+
+      if (cutResult) {
+        // Store the cut data using the calculated edge intersection points
+        this.pendingCut = {
+          startPoint: cutResult.startPoint,
+          endPoint: cutResult.endPoint
+        };
+
+        // Redraw to show the calculated cut line
+        this.draw();
+
+        // Show approval button
+        if (this.onReady) {
+          this.onReady();
+        }
+      } else {
+        // No valid cut found - reset face points to try again
+        this.faceStartPoint = null;
+        this.faceEndPoint = null;
+        this.draw();
+      }
+      return;
+    }
+
+    // Edge mode (original behavior)
     // Only process clicks on edges (not empty space)
     const result = this.findEdgeAtPosition(e.clientX, e.clientY);
     if (!result) return;
@@ -582,12 +856,21 @@ export class CutOverlay {
   }
 
   reset() {
+    // Edge mode state
     this.startPoint = null;
     this.startEdge = null;
     this.startFace = null;
     this.hoverEdge = null;
     this.hoverFace = null;
     this.hoverPoint = null;
+
+    // Face mode state
+    this.faceStartPoint = null;
+    this.faceEndPoint = null;
+    this.faceHoverPoint = null;
+
+    // Clear pending cut
+    this.pendingCut = null;
   }
 
   draw() {
@@ -599,65 +882,83 @@ export class CutOverlay {
 
     if (!this.isActive) return;
 
-    // Determine if current hover is a valid cut target
-    // Use ID comparison for robustness
-    const isValidCut = this.startPoint &&
-      this.hoverEdge &&
-      this.hoverFace && this.startFace &&
-    //  this.hoverFace.id === this.startFace.id && // this was causing issues with cutting of lines
-      this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
+    // Face mode visualization
+    if (this.mode === 'face') {
+      // Draw hover point on face (when no start point set)
+      if (!this.faceStartPoint && this.faceHoverPoint) {
+        const hoverScreen = this.worldToScreen(this.faceHoverPoint);
 
-    // Draw hover edge highlight (when no start point set)
-    if (!this.startPoint && this.hoverPoint) {
-      this.drawEdgeHighlight(this.hoverEdge, this.edgeColor);
-
-      // Draw hover point marker
-      ctx.fillStyle = this.edgeColor;
-      ctx.beginPath();
-      ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Draw start point when set
-    if (this.startPoint) {
-      // Draw the start edge highlight
-      this.drawEdgeHighlight(this.startEdge, this.lineColor);
-
-      // Draw start point marker
-      ctx.fillStyle = this.lineColor;
-      ctx.beginPath();
-      ctx.arc(this.startPoint.x, this.startPoint.y, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.arc(this.startPoint.x, this.startPoint.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw cut preview line if hovering a valid edge
-      if (this.hoverPoint) {
-        const lineColor = isValidCut ? this.lineColor : this.invalidColor;
-
-        // Draw the cut line
-        ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([]);
-
+        // Draw hover point marker (green)
+        ctx.fillStyle = this.facePointColor;
         ctx.beginPath();
-        ctx.moveTo(this.startPoint.x, this.startPoint.y);
-        ctx.lineTo(this.hoverPoint.x, this.hoverPoint.y);
-        ctx.stroke();
+        ctx.arc(hoverScreen.x, hoverScreen.y, 8, 0, Math.PI * 2);
+        ctx.fill();
 
-        // Draw hover edge highlight
-        this.drawEdgeHighlight(this.hoverEdge, isValidCut ? this.edgeColor : this.invalidColor);
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(hoverScreen.x, hoverScreen.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw start point when set
+      if (this.faceStartPoint && !this.pendingCut) {
+        const startScreen = this.worldToScreen(this.faceStartPoint);
+
+        // Draw start point marker (green)
+        ctx.fillStyle = this.facePointColor;
+        ctx.beginPath();
+        ctx.arc(startScreen.x, startScreen.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(startScreen.x, startScreen.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw preview line to hover point
+        if (this.faceHoverPoint) {
+          const hoverScreen = this.worldToScreen(this.faceHoverPoint);
+
+          // Draw dashed preview line
+          ctx.strokeStyle = this.facePointColor;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+
+          ctx.beginPath();
+          ctx.moveTo(startScreen.x, startScreen.y);
+          ctx.lineTo(hoverScreen.x, hoverScreen.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Draw hover point marker
+          ctx.fillStyle = this.facePointColor;
+          ctx.beginPath();
+          ctx.arc(hoverScreen.x, hoverScreen.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#000';
+          ctx.beginPath();
+          ctx.arc(hoverScreen.x, hoverScreen.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else {
+      // Edge mode visualization (original behavior)
+
+      // Determine if current hover is a valid cut target
+      // Use ID comparison for robustness
+      const isValidCut = this.startPoint &&
+        this.hoverEdge &&
+        this.hoverFace && this.startFace &&
+      //  this.hoverFace.id === this.startFace.id && // this was causing issues with cutting of lines
+        this.hoverEdge.edge.startIndex !== this.startEdge.edge.startIndex;
+
+      // Draw hover edge highlight (when no start point set)
+      if (!this.startPoint && this.hoverPoint) {
+        this.drawEdgeHighlight(this.hoverEdge, this.edgeColor);
 
         // Draw hover point marker
-        ctx.fillStyle = isValidCut ? this.edgeColor : this.invalidColor;
+        ctx.fillStyle = this.edgeColor;
         ctx.beginPath();
         ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 8, 0, Math.PI * 2);
         ctx.fill();
@@ -666,6 +967,52 @@ export class CutOverlay {
         ctx.beginPath();
         ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 4, 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      // Draw start point when set
+      if (this.startPoint) {
+        // Draw the start edge highlight
+        this.drawEdgeHighlight(this.startEdge, this.lineColor);
+
+        // Draw start point marker
+        ctx.fillStyle = this.lineColor;
+        ctx.beginPath();
+        ctx.arc(this.startPoint.x, this.startPoint.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(this.startPoint.x, this.startPoint.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw cut preview line if hovering a valid edge
+        if (this.hoverPoint) {
+          const lineColor = isValidCut ? this.lineColor : this.invalidColor;
+
+          // Draw the cut line
+          ctx.strokeStyle = lineColor;
+          ctx.lineWidth = 3;
+          ctx.setLineDash([]);
+
+          ctx.beginPath();
+          ctx.moveTo(this.startPoint.x, this.startPoint.y);
+          ctx.lineTo(this.hoverPoint.x, this.hoverPoint.y);
+          ctx.stroke();
+
+          // Draw hover edge highlight
+          this.drawEdgeHighlight(this.hoverEdge, isValidCut ? this.edgeColor : this.invalidColor);
+
+          // Draw hover point marker
+          ctx.fillStyle = isValidCut ? this.edgeColor : this.invalidColor;
+          ctx.beginPath();
+          ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#000';
+          ctx.beginPath();
+          ctx.arc(this.hoverPoint.x, this.hoverPoint.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 

@@ -153,6 +153,16 @@
     <main id="viewport">
       <canvas id="canvas"></canvas>
 
+      <!-- Mode toolbar for cut/inset tools (right side) -->
+      <div id="mode-toolbar" style="display: none;">
+        <button id="mode-edge" class="mode-btn active" title="Edge mode - click on edges">
+          <span class="material-symbols-outlined">conversion_path</span>
+        </button>
+        <button id="mode-face" class="mode-btn" title="Face mode - click on faces">
+          <span class="material-symbols-outlined">rectangle</span>
+        </button>
+      </div>
+
       <!-- 2D Overlay for perspective lines (legacy - kept for compatibility) -->
       <canvas id="overlay" style="display: none;"></canvas>
 
