@@ -54,6 +54,13 @@ body {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
+  /* Disable text selection on mobile */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Material Symbols */
@@ -306,6 +313,8 @@ body {
   height: 100%;
   display: block;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #overlay {
@@ -785,6 +794,8 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
+  -webkit-user-select: none;
+  user-select: none;
   touch-action: none; /* Prevent browser handling of touch gestures for pinch-zoom/pan */
   cursor: crosshair;
 }

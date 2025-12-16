@@ -108,8 +108,14 @@ class App {
     this.currentImageElement = null;
     this.correctedCanvas = null;
 
-    // Recent images (max 9)
+    // Recent images (max 9) - stored in IndexedDB
+    this.imageDB = null;
     this.recentImages = this.loadRecentImages();
+
+    // Initialize IndexedDB asynchronously
+    this.initImageDB().then(() => {
+      console.log('ImageDB initialized');
+    });
 
     // Pending action for approve button
     this.pendingAction = null;
@@ -220,11 +226,92 @@ class App {
   }
 
   /**
-   * Load recent images from localStorage
+   * Initialize IndexedDB for storing full images
+   */
+  async initImageDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('imagemodel_db', 1);
+
+      request.onerror = () => {
+        console.warn('Could not open IndexedDB');
+        resolve(null);
+      };
+
+      request.onsuccess = () => {
+        this.imageDB = request.result;
+        resolve(request.result);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('images')) {
+          db.createObjectStore('images', { keyPath: 'id' });
+        }
+      };
+    });
+  }
+
+  /**
+   * Store full image in IndexedDB
+   */
+  async storeImageInDB(id, dataUrl) {
+    if (!this.imageDB) return false;
+
+    return new Promise((resolve) => {
+      try {
+        const transaction = this.imageDB.transaction(['images'], 'readwrite');
+        const store = transaction.objectStore('images');
+        store.put({ id, dataUrl });
+        transaction.oncomplete = () => resolve(true);
+        transaction.onerror = () => resolve(false);
+      } catch (e) {
+        console.warn('Could not store image in DB:', e.message);
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * Get full image from IndexedDB
+   */
+  async getImageFromDB(id) {
+    if (!this.imageDB) return null;
+
+    return new Promise((resolve) => {
+      try {
+        const transaction = this.imageDB.transaction(['images'], 'readonly');
+        const store = transaction.objectStore('images');
+        const request = store.get(id);
+        request.onsuccess = () => resolve(request.result?.dataUrl || null);
+        request.onerror = () => resolve(null);
+      } catch (e) {
+        console.warn('Could not get image from DB:', e.message);
+        resolve(null);
+      }
+    });
+  }
+
+  /**
+   * Delete image from IndexedDB
+   */
+  async deleteImageFromDB(id) {
+    if (!this.imageDB) return;
+
+    try {
+      const transaction = this.imageDB.transaction(['images'], 'readwrite');
+      const store = transaction.objectStore('images');
+      store.delete(id);
+    } catch (e) {
+      console.warn('Could not delete image from DB:', e.message);
+    }
+  }
+
+  /**
+   * Load recent images metadata from localStorage
    */
   loadRecentImages() {
     try {
-      const stored = localStorage.getItem('imagemodel_recent');
+      const stored = localStorage.getItem('imagemodel_recent_meta');
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
       console.warn('Could not load recent images:', e.message);
@@ -233,63 +320,78 @@ class App {
   }
 
   /**
-   * Save recent images to localStorage
+   * Save recent images metadata to localStorage (thumbnails only, not full images)
    */
   saveRecentImages() {
     try {
-      localStorage.setItem('imagemodel_recent', JSON.stringify(this.recentImages));
+      // Only save metadata (id, name, thumbnail) - not full dataUrl
+      const metadata = this.recentImages.map(({ id, name, thumbnail }) => ({ id, name, thumbnail }));
+      localStorage.setItem('imagemodel_recent_meta', JSON.stringify(metadata));
     } catch (e) {
       console.warn('Could not save recent images:', e.message);
-      // Clear oldest images and retry
-      if (e.message.includes('quota') && this.recentImages.length > 0) {
-        this.recentImages = this.recentImages.slice(0, Math.max(1, Math.floor(this.recentImages.length / 2)));
-        try {
-          localStorage.setItem('imagemodel_recent', JSON.stringify(this.recentImages));
-        } catch (e2) {
-          console.warn('Still could not save after clearing:', e2.message);
-        }
-      }
     }
   }
 
   /**
    * Add image to recent images list
    */
-  addToRecentImages(dataUrl, name) {
+  async addToRecentImages(dataUrl, name) {
+    // Generate unique ID
+    const id = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     // Create thumbnail (resize to 100x100)
     const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 100;
-      canvas.height = 100;
-      const ctx = canvas.getContext('2d');
 
-      // Cover fit
-      const scale = Math.max(100 / img.width, 100 / img.height);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      const x = (100 - w) / 2;
-      const y = (100 - h) / 2;
+    return new Promise((resolve) => {
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 100;
+        canvas.height = 100;
+        const ctx = canvas.getContext('2d');
 
-      ctx.drawImage(img, x, y, w, h);
+        // Cover fit
+        const scale = Math.max(100 / img.width, 100 / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        const x = (100 - w) / 2;
+        const y = (100 - h) / 2;
 
-      const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
+        ctx.drawImage(img, x, y, w, h);
 
-      // Remove if already exists
-      this.recentImages = this.recentImages.filter(r => r.name !== name);
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
 
-      // Add to beginning
-      this.recentImages.unshift({ name, thumbnail, dataUrl });
+        // Remove old entry with same name and delete its image from DB
+        const existing = this.recentImages.find(r => r.name === name);
+        if (existing) {
+          await this.deleteImageFromDB(existing.id);
+        }
+        this.recentImages = this.recentImages.filter(r => r.name !== name);
 
-      // Keep only 9
-      if (this.recentImages.length > 9) {
-        this.recentImages = this.recentImages.slice(0, 9);
-      }
+        // Add to beginning (only store id, name, thumbnail in memory/localStorage)
+        this.recentImages.unshift({ id, name, thumbnail });
 
-      this.saveRecentImages();
-      this.renderRecentImages();
-    };
-    img.src = dataUrl;
+        // Store full image in IndexedDB
+        await this.storeImageInDB(id, dataUrl);
+
+        // Keep only 9 - delete old images from DB
+        if (this.recentImages.length > 9) {
+          const toRemove = this.recentImages.slice(9);
+          for (const item of toRemove) {
+            await this.deleteImageFromDB(item.id);
+          }
+          this.recentImages = this.recentImages.slice(0, 9);
+        }
+
+        this.saveRecentImages();
+        this.renderRecentImages();
+        resolve();
+      };
+      img.onerror = () => {
+        console.warn('Could not create thumbnail for recent image');
+        resolve();
+      };
+      img.src = dataUrl;
+    });
   }
 
   /**
@@ -312,14 +414,25 @@ class App {
   }
 
   /**
-   * Load a recent image
+   * Load a recent image from IndexedDB
    */
   async loadRecentImage(index) {
     const recent = this.recentImages[index];
     if (!recent) return;
 
+    // Get full image from IndexedDB
+    const dataUrl = await this.getImageFromDB(recent.id);
+    if (!dataUrl) {
+      console.warn('Image not found in database');
+      // Remove from recent list since image is missing
+      this.recentImages.splice(index, 1);
+      this.saveRecentImages();
+      this.renderRecentImages();
+      return;
+    }
+
     // Convert dataUrl to File-like object
-    const response = await fetch(recent.dataUrl);
+    const response = await fetch(dataUrl);
     const blob = await response.blob();
     const file = new File([blob], recent.name, { type: blob.type });
 
