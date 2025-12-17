@@ -3,6 +3,8 @@
  * Exports the editable mesh to OBJ format with MTL and texture
  */
 
+import JSZip from 'jszip';
+
 /**
  * Export mesh to OBJ format
  * @param {EditableMesh} editableMesh
@@ -94,7 +96,8 @@ export function exportToOBJ(editableMesh, name = 'model') {
 }
 
 /**
- * Download files as a zip or individually
+ * Download files as a single zip archive
+ * This works reliably on mobile/iPad where multiple downloads are blocked
  * @param {EditableMesh} editableMesh
  * @param {HTMLCanvasElement|string} textureSource - Texture canvas or data URL
  * @param {string} name - Export name
@@ -112,16 +115,23 @@ export async function downloadOBJ(editableMesh, textureSource, name = 'model') {
     textureBlob = await response.blob();
   }
 
-  // Download OBJ
-  downloadFile(`${name}.obj`, obj, 'text/plain');
+  // Create zip file containing all export files
+  const zip = new JSZip();
 
-  // Download MTL
-  downloadFile(`${name}.mtl`, mtl, 'text/plain');
+  // Add OBJ file
+  zip.file(`${name}.obj`, obj);
 
-  // Download texture
+  // Add MTL file
+  zip.file(`${name}.mtl`, mtl);
+
+  // Add texture
   if (textureBlob) {
-    downloadBlob(`${name}_texture.png`, textureBlob);
+    zip.file(`${name}_texture.png`, textureBlob);
   }
+
+  // Generate zip and download
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  downloadBlob(`${name}.zip`, zipBlob);
 }
 
 /**
