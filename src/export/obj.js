@@ -144,6 +144,8 @@ function downloadFile(filename, content, mimeType) {
 
 /**
  * Helper to download a blob
+ * Note: On iOS, there's a confirmation dialog before download starts,
+ * so we delay revoking the URL to ensure the download completes
  */
 function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
@@ -153,7 +155,12 @@ function downloadBlob(filename, blob) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+
+  // Delay URL cleanup to allow iOS Safari time to complete download
+  // iOS shows a confirmation dialog, so the download doesn't start immediately
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 60000); // 60 seconds - plenty of time for user to confirm and download
 }
 
 /**
