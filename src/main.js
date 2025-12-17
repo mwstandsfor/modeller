@@ -65,9 +65,12 @@ class App {
       // 4. Update nextFaceId to avoid ID collisions with subsequent operations
       this.editableMesh.nextFaceId = Math.max(...updatedFaces.map(f => f.id)) + 1;
 
+      // 5. Merge duplicate vertices created by the cut
+      this.editableMesh.mergeVertices();
+
       this.editableMesh.rebuildMesh();
 
-      // 5. Save state for undo
+      // 6. Save state for undo
       this.history.pushState(this.getSerializableState(), 'Cut faces');
     };
     this.cutOverlay.onReady = () => {
@@ -1256,6 +1259,9 @@ class App {
     result.sideFaces.forEach(f => this.editableMesh.faces.push(f));
     this.editableMesh.nextFaceId = result.nextFaceId;
 
+    // Merge duplicate vertices
+    this.editableMesh.mergeVertices();
+
     // Rebuild mesh
     this.editableMesh.rebuildMesh();
 
@@ -1322,6 +1328,9 @@ class App {
 
       newInsetFaces.push(...result.insetFaces);
     }
+
+    // Merge duplicate vertices
+    this.editableMesh.mergeVertices();
 
     // Rebuild mesh
     this.editableMesh.rebuildMesh();

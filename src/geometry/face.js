@@ -449,4 +449,60 @@ export class EditableMesh {
       this.wireframeMaterial.dispose();
     }
   }
+
+  /**
+   * Merge vertices that are at the same position (within tolerance)
+   * This reduces duplicate vertices created by cuts and other operations
+   * @param {number} [tolerance=0.00001] - Maximum distance to consider vertices as the same
+   * @returns {number} - Number of vertices merged
+   */
+  mergeVertices(tolerance = 0.00001) {
+    // Build a spatial hash map of unique vertex positions
+    const precision = Math.round(1 / tolerance);
+    const vertexMap = new Map(); // key -> { vertex: THREE.Vector3, refs: [{face, index}] }
+
+    // Helper to create a position key
+    const posKey = (v) => {
+      return `${Math.round(v.x * precision)},${Math.round(v.y * precision)},${Math.round(v.z * precision)}`;
+    };
+
+    // Collect all vertex references
+    this.faces.forEach(face => {
+      face.vertices.forEach((v, i) => {
+        const key = posKey(v);
+        if (!vertexMap.has(key)) {
+          vertexMap.set(key, { vertex: v, refs: [] });
+        }
+        vertexMap.get(key).refs.push({ face, index: i });
+      });
+    });
+
+    // Merge vertices - make all refs point to the same vertex instance
+    let mergeCount = 0;
+
+    vertexMap.forEach(({ vertex, refs }) => {
+      if (refs.length > 1) {
+        // Multiple faces reference this position - merge them
+        // Calculate average position for better precision
+        const avgPos = new THREE.Vector3();
+        refs.forEach(ref => avgPos.add(ref.face.vertices[ref.index]));
+        avgPos.divideScalar(refs.length);
+
+        // Create the canonical vertex at the average position
+        const mergedVertex = new THREE.Vector3(avgPos.x, avgPos.y, avgPos.z);
+
+        // Update all face references to use the same vertex instance
+        refs.forEach(ref => {
+          ref.face.vertices[ref.index] = mergedVertex;
+        });
+
+        mergeCount += refs.length - 1;
+      }
+    });
+
+    // Recalculate normals after merging
+    this.faces.forEach(face => face.calculateNormal());
+
+    return mergeCount;
+  }
 }
