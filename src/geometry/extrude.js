@@ -19,6 +19,7 @@ function edgeKey(v1, v2) {
 /**
  * Extrude a face along its normal
  * Creates side faces connecting the original and extruded face
+ * UVs are stretched like rubber - no new UV islands are created
  *
  * @param {Face} face - Face to extrude
  * @param {number} distance - Extrusion distance (positive = outward, negative = inward)
@@ -30,12 +31,14 @@ export function extrudeFace(face, distance, nextFaceId) {
   const offset = normal.multiplyScalar(distance);
 
   // Create extruded face (moved copy of original)
+  // Uses the SAME UVs as original - this is intentional for image-based modeling
   const extrudedVertices = face.vertices.map(v => v.clone().add(offset));
   const extrudedUVs = face.uvs.map(uv => uv.clone());
 
   const extrudedFace = new Face(face.id, extrudedVertices, extrudedUVs);
 
   // Create side faces connecting original and extruded
+  // UVs stretch between original face UVs - no new UV islands
   const sideFaces = [];
   const n = face.vertices.length;
 
@@ -49,19 +52,15 @@ export function extrudeFace(face, distance, nextFaceId) {
     const v2 = extrudedVertices[nextI].clone();
     const v3 = extrudedVertices[i].clone();
 
-    // UV mapping for sides (simple planar projection)
-    // Map based on position along edge and extrusion depth
-    const edgeLength = v0.distanceTo(v1);
-    const uScale = edgeLength / 2; // Normalize to reasonable UV space
+    // UV mapping: stretch UVs like rubber being pulled
+    // Bottom edge uses original face UVs
+    // Top edge uses the SAME UVs (creating stretch effect)
+    const uv0 = face.uvs[i].clone();
+    const uv1 = face.uvs[nextI].clone();
+    const uv2 = face.uvs[nextI].clone();  // Same as uv1 - stretches from bottom
+    const uv3 = face.uvs[i].clone();       // Same as uv0 - stretches from bottom
 
-    const sideUVs = [
-      new THREE.Vector2(0, 0),
-      new THREE.Vector2(uScale, 0),
-      new THREE.Vector2(uScale, Math.abs(distance)),
-      new THREE.Vector2(0, Math.abs(distance))
-    ];
-
-    const sideFace = new Face(nextFaceId++, [v0, v1, v2, v3], sideUVs);
+    const sideFace = new Face(nextFaceId++, [v0, v1, v2, v3], [uv0, uv1, uv2, uv3]);
     sideFaces.push(sideFace);
   }
 
@@ -80,6 +79,7 @@ export function extrudeFace(face, distance, nextFaceId) {
 /**
  * Extrude multiple faces together, only creating side faces along the outer perimeter
  * Shared edges between selected faces don't get side faces (avoids internal geometry)
+ * UVs are stretched like rubber - no new UV islands are created
  *
  * @param {Face[]} faces - Faces to extrude
  * @param {number} distance - Extrusion distance
@@ -97,9 +97,9 @@ export function extrudeFaces(faces, distance, nextFaceId) {
   avgNormal.normalize();
   const offset = avgNormal.clone().multiplyScalar(distance);
 
-  // Count edge occurrences across all faces
+  // Count edge occurrences across all faces and store edge UV data
   const edgeCounts = new Map();
-  const edgeData = new Map(); // Store edge data for creating side faces
+  const edgeUVData = new Map(); // Store edge UV data for creating side faces
 
   faces.forEach(face => {
     const n = face.vertices.length;
@@ -111,9 +111,14 @@ export function extrudeFaces(faces, distance, nextFaceId) {
 
       edgeCounts.set(key, (edgeCounts.get(key) || 0) + 1);
 
-      // Store edge data (keep the first occurrence's vertex order for winding)
-      if (!edgeData.has(key)) {
-        edgeData.set(key, { v0: v0.clone(), v1: v1.clone() });
+      // Store edge data with UVs (keep the first occurrence for consistent winding)
+      if (!edgeUVData.has(key)) {
+        edgeUVData.set(key, {
+          v0: v0.clone(),
+          v1: v1.clone(),
+          uv0: face.uvs[i].clone(),
+          uv1: face.uvs[nextI].clone()
+        });
       }
     }
   });
@@ -130,6 +135,7 @@ export function extrudeFaces(faces, distance, nextFaceId) {
       }
       return extrudedVertexMap.get(key).clone();
     });
+    // Extruded face uses the SAME UVs as original - intentional for image-based modeling
     const extrudedUVs = face.uvs.map(uv => uv.clone());
 
     const extrudedFace = new Face(face.id, extrudedVertices, extrudedUVs);
@@ -137,6 +143,7 @@ export function extrudeFaces(faces, distance, nextFaceId) {
   });
 
   // Create side faces only for perimeter edges (edges that appear once)
+  // UVs stretch between original face UVs - no new UV islands
   const sideFaces = [];
 
   faces.forEach(face => {
@@ -163,18 +170,15 @@ export function extrudeFaces(faces, distance, nextFaceId) {
           extV0.clone()
         ];
 
-        // UV mapping for sides
-        const edgeLength = v0.distanceTo(v1);
-        const uScale = edgeLength / 2;
+        // UV mapping: stretch UVs like rubber being pulled
+        // Bottom edge uses original face UVs at this edge
+        // Top edge uses the SAME UVs (creating stretch effect)
+        const uv0 = face.uvs[i].clone();
+        const uv1 = face.uvs[nextI].clone();
+        const uv2 = face.uvs[nextI].clone();  // Same as uv1 - stretches from bottom
+        const uv3 = face.uvs[i].clone();       // Same as uv0 - stretches from bottom
 
-        const sideUVs = [
-          new THREE.Vector2(0, 0),
-          new THREE.Vector2(uScale, 0),
-          new THREE.Vector2(uScale, Math.abs(distance)),
-          new THREE.Vector2(0, Math.abs(distance))
-        ];
-
-        const sideFace = new Face(nextFaceId++, sideVerts, sideUVs);
+        const sideFace = new Face(nextFaceId++, sideVerts, [uv0, uv1, uv2, uv3]);
         sideFaces.push(sideFace);
       }
     }
