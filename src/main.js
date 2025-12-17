@@ -146,6 +146,16 @@ class App {
     // Grid visibility state
     this.gridVisible = true;
 
+    // Confirmation modal elements
+    this.confirmModal = document.getElementById('confirm-modal');
+    this.confirmOkBtn = document.getElementById('confirm-ok');
+    this.confirmCancelBtn = document.getElementById('confirm-cancel');
+    this.pendingConfirmAction = null;
+
+    // Setup confirmation modal buttons
+    this.confirmOkBtn.addEventListener('click', () => this.executeConfirm());
+    this.confirmCancelBtn.addEventListener('click', () => this.cancelConfirm());
+
     // Setup ratio slider
     if (this.ratioSlider) {
       this.ratioSlider.addEventListener('input', (e) => {
@@ -475,6 +485,48 @@ class App {
     this.approveBtn.style.display = 'none';
     this.approveBtn.classList.remove('ready');
     this.skipBtn.style.display = 'none';
+  }
+
+  /**
+   * Show confirmation modal
+   * @param {Function} onConfirm - Action to execute when user confirms
+   */
+  showConfirmModal(onConfirm) {
+    this.pendingConfirmAction = onConfirm;
+    this.confirmModal.style.display = 'flex';
+  }
+
+  /**
+   * Hide confirmation modal
+   */
+  hideConfirmModal() {
+    this.pendingConfirmAction = null;
+    this.confirmModal.style.display = 'none';
+  }
+
+  /**
+   * Execute pending confirmation action
+   */
+  executeConfirm() {
+    if (this.pendingConfirmAction) {
+      const action = this.pendingConfirmAction;
+      this.hideConfirmModal();
+      action();
+    }
+  }
+
+  /**
+   * Cancel confirmation
+   */
+  cancelConfirm() {
+    this.hideConfirmModal();
+  }
+
+  /**
+   * Check if there's an active session (image loaded with work done)
+   */
+  hasActiveSession() {
+    return this.hasImage || this.hasMesh;
   }
 
   /**
@@ -874,24 +926,26 @@ class App {
   }
 
   /**
-   * Import image file
+   * Import image file (with confirmation if session exists)
    */
   async importImage(file) {
+    // Check if there's an active session that would be lost
+    if (this.hasActiveSession()) {
+      this.showConfirmModal(() => this.doImportImage(file));
+      return;
+    }
+
+    // No active session, import directly
+    await this.doImportImage(file);
+  }
+
+  /**
+   * Actually import the image (after confirmation or if no session exists)
+   */
+  async doImportImage(file) {
     try {
-      // Cleanup existing
-      if (this.imagePlane) {
-        this.scene.remove(this.imagePlane.mesh);
-        this.imagePlane.dispose();
-        this.imagePlane = null;
-      }
-      if (this.editableMesh) {
-        this.scene.remove(this.editableMesh.mesh);
-        if (this.editableMesh.getWireframe()) {
-          this.scene.remove(this.editableMesh.getWireframe());
-        }
-        this.editableMesh.dispose();
-        this.editableMesh = null;
-      }
+      // Full scene cleanup
+      this.resetScene();
 
       // Create image plane
       this.imagePlane = new ImagePlane();
@@ -919,6 +973,70 @@ class App {
       console.error('Failed to import image:', error);
       alert('Failed to import image. Please try another file.');
     }
+  }
+
+  /**
+   * Full scene reset - clears all state for a fresh start
+   */
+  resetScene() {
+    // Remove image plane
+    if (this.imagePlane) {
+      this.scene.remove(this.imagePlane.mesh);
+      this.imagePlane.dispose();
+      this.imagePlane = null;
+    }
+
+    // Remove editable mesh and wireframe
+    if (this.editableMesh) {
+      this.scene.remove(this.editableMesh.mesh);
+      if (this.editableMesh.getWireframe()) {
+        this.scene.remove(this.editableMesh.getWireframe());
+      }
+      this.editableMesh.dispose();
+      this.editableMesh = null;
+    }
+
+    // Clear selection
+    this.selectedFaces = [];
+    if (this.selectTool) {
+      this.selectTool.clearSelection();
+    }
+
+    // Reset tool states
+    if (this.cutOverlay) {
+      this.cutOverlay.reset();
+    }
+    if (this.extrudeTool) {
+      this.extrudeTool.cancelPendingExtrusion?.();
+    }
+
+    // Clear history
+    this.history.clear();
+
+    // Clear pending actions
+    this.hideApproveButton();
+    this.pendingPerspectivePoints = null;
+    this.previewCanvas = null;
+    this.correctedCanvas = null;
+
+    // Reset state flags
+    this.hasImage = false;
+    this.hasMesh = false;
+    this.currentImageData = null;
+    this.currentImageElement = null;
+
+    // Reset ratio
+    this.ratioScale = 1.0;
+    if (this.ratioSlider) {
+      this.ratioSlider.value = 1.0;
+    }
+    if (this.ratioValueDisplay) {
+      this.ratioValueDisplay.textContent = '1.00';
+    }
+
+    // Close any open panels
+    this.recentPanel.style.display = 'none';
+    this.historyBtn.classList.remove('active');
   }
 
   /**

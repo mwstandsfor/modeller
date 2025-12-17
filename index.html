@@ -192,6 +192,20 @@
   <!-- Hidden file input -->
   <input type="file" id="file-input" accept="image/*" style="display: none;">
 
+  <!-- Confirmation Modal -->
+  <div id="confirm-modal" class="confirm-overlay" style="display: none;">
+    <div class="confirm-modal">
+      <div class="confirm-content">
+        <div class="confirm-title">Start New Session?</div>
+        <div class="confirm-message">Loading a new image will clear your current work. This cannot be undone.</div>
+        <div class="confirm-actions">
+          <button id="confirm-cancel" class="confirm-btn">Cancel</button>
+          <button id="confirm-ok" class="confirm-btn primary">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
