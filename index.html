@@ -153,13 +153,23 @@
     <main id="viewport">
       <canvas id="canvas"></canvas>
 
-      <!-- Mode toolbar for cut/inset tools (right side) -->
+      <!-- Mode toolbar for cut tool (right side) -->
       <div id="mode-toolbar" style="display: none;">
         <button id="mode-edge" class="mode-btn active" title="Edge mode - click on edges">
           <span class="material-symbols-outlined">conversion_path</span>
         </button>
         <button id="mode-face" class="mode-btn" title="Face mode - click on faces">
           <span class="material-symbols-outlined">rectangle</span>
+        </button>
+      </div>
+
+      <!-- Mode toolbar for inset tool (right side) -->
+      <div id="inset-mode-toolbar" style="display: none;">
+        <button id="inset-mode-grouped" class="mode-btn active" title="Grouped - inset faces as region">
+          <span class="material-symbols-outlined">stack_group</span>
+        </button>
+        <button id="inset-mode-individual" class="mode-btn" title="Individual - inset each face separately">
+          <span class="material-symbols-outlined">view_column_2</span>
         </button>
       </div>
 

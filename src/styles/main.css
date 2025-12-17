@@ -941,7 +941,8 @@ body {
 }
 
 /* Mode toolbar (for cut/inset tools) */
-#mode-toolbar {
+#mode-toolbar,
+#inset-mode-toolbar {
   position: absolute;
   right: 16px;
   top: 50%;

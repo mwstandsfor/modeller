@@ -433,9 +433,50 @@ export class InsetTool {
     // Double-tap on empty space handler
     this.emptySpaceHandler = createEmptySpaceHandler();
 
+    // Mode toolbar elements
+    this.modeToolbar = document.getElementById('inset-mode-toolbar');
+    this.modeGroupedBtn = document.getElementById('inset-mode-grouped');
+    this.modeIndividualBtn = document.getElementById('inset-mode-individual');
+
+    // Setup mode button handlers
+    if (this.modeGroupedBtn) {
+      this.modeGroupedBtn.addEventListener('click', () => this.handleModeButton(this.modeGroupedBtn));
+    }
+    if (this.modeIndividualBtn) {
+      this.modeIndividualBtn.addEventListener('click', () => this.handleModeButton(this.modeIndividualBtn));
+    }
+
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
+  }
+
+  /**
+   * Handle mode toolbar button click
+   */
+  handleModeButton(btn) {
+    const newMode = btn.id === 'inset-mode-individual';
+
+    if (this.individualMode !== newMode) {
+      this.individualMode = newMode;
+      this.updateModeButtons();
+
+      if (this.onModeToggle) {
+        this.onModeToggle(this.individualMode);
+      }
+    }
+  }
+
+  /**
+   * Update mode button active states
+   */
+  updateModeButtons() {
+    if (this.modeGroupedBtn) {
+      this.modeGroupedBtn.classList.toggle('active', !this.individualMode);
+    }
+    if (this.modeIndividualBtn) {
+      this.modeIndividualBtn.classList.toggle('active', this.individualMode);
+    }
   }
 
   setMesh(editableMesh) {
@@ -485,6 +526,12 @@ export class InsetTool {
     // Enable controls for wheel zoom
     this.sceneManager.setControlsEnabled(true);
 
+    // Show mode toolbar
+    if (this.modeToolbar) {
+      this.modeToolbar.style.display = 'flex';
+      this.updateModeButtons();
+    }
+
     // Show gizmo if faces already selected
     if (this.selectedFaces.length > 0) {
       this.createGizmo();
@@ -498,6 +545,12 @@ export class InsetTool {
       this.canvas.removeEventListener('pointerup', this.handlePointerUp);
       this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
     }
+
+    // Hide mode toolbar
+    if (this.modeToolbar) {
+      this.modeToolbar.style.display = 'none';
+    }
+
     this.removePreview();
     this.removeGizmo();
   }
