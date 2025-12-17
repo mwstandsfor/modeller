@@ -378,6 +378,12 @@ export class ShortcutsManager {
           return;
         }
 
+        // Handle double-tap for cut to toggle edge/face mode
+        if (action === 'cut' && isDoubleTap) {
+          this.toggleCutMode();
+          return;
+        }
+
         this.executeAction(action);
         return;
       }
@@ -390,6 +396,15 @@ export class ShortcutsManager {
   toggleInsetMode() {
     if (this.app.toolbar) {
       this.app.toolbar.toggleInsetMode();
+    }
+  }
+
+  /**
+   * Toggle cut edge/face mode via keyboard double-tap
+   */
+  toggleCutMode() {
+    if (this.app.toolbar) {
+      this.app.toolbar.toggleCutMode();
     }
   }
 

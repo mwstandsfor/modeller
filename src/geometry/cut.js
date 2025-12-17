@@ -342,6 +342,7 @@ export class CutOverlay {
     // Callbacks
     this.onCutComplete = null;
     this.onReady = null;  // Called when cut is ready for approval
+    this.onModeChange = null;  // Called when mode is toggled (edge/face)
 
     // Pending cut data
     this.pendingCut = null;
@@ -427,17 +428,48 @@ export class CutOverlay {
   handleModeChange(e) {
     const btn = e.currentTarget;
     const newMode = btn.id === 'mode-edge' ? 'edge' : 'face';
+    this.setMode(newMode);
+  }
 
-    if (newMode !== this.mode) {
-      this.mode = newMode;
+  /**
+   * Set the cut mode directly
+   * @param {string} mode - 'edge' or 'face'
+   */
+  setMode(mode) {
+    if (mode !== this.mode) {
+      this.mode = mode;
+      this.updateModeButtons();
 
-      // Update button states
-      this.modeEdgeBtn.classList.toggle('active', newMode === 'edge');
-      this.modeFaceBtn.classList.toggle('active', newMode === 'face');
+      // Notify listeners
+      if (this.onModeChange) {
+        this.onModeChange(mode);
+      }
 
       // Reset state when switching modes
       this.reset();
       this.draw();
+    }
+  }
+
+  /**
+   * Toggle between edge and face modes
+   * @returns {string} The new mode
+   */
+  toggleMode() {
+    const newMode = this.mode === 'edge' ? 'face' : 'edge';
+    this.setMode(newMode);
+    return newMode;
+  }
+
+  /**
+   * Update mode button active states
+   */
+  updateModeButtons() {
+    if (this.modeEdgeBtn) {
+      this.modeEdgeBtn.classList.toggle('active', this.mode === 'edge');
+    }
+    if (this.modeFaceBtn) {
+      this.modeFaceBtn.classList.toggle('active', this.mode === 'face');
     }
   }
 

@@ -80,6 +80,12 @@ class App {
         () => this.cutOverlay.cancelPendingCut()
       );
     };
+    this.cutOverlay.onModeChange = (mode) => {
+      // Sync toolbar state when mode is changed via mode-toolbar buttons
+      if (this.toolbar) {
+        this.toolbar.setCutMode(mode === 'face');
+      }
+    };
 
     this.selectTool = new SelectTool(this.scene);
     this.selectTool.onSelect = (faces) => this.onFacesSelected(faces);

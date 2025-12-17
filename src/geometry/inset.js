@@ -497,6 +497,7 @@ export class InsetTool {
    */
   toggleIndividualMode() {
     this.individualMode = !this.individualMode;
+    this.updateModeButtons();
     if (this.onModeToggle) {
       this.onModeToggle(this.individualMode);
     }
@@ -510,6 +511,7 @@ export class InsetTool {
   setIndividualMode(individual) {
     if (this.individualMode !== individual) {
       this.individualMode = individual;
+      this.updateModeButtons();
       if (this.onModeToggle) {
         this.onModeToggle(this.individualMode);
       }

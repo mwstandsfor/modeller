@@ -39,7 +39,8 @@ export class Toolbar {
 
     // Tool mode states (for tools with alternate modes)
     this.toolModes = {
-      inset: false  // false = region, true = individual
+      inset: false,  // false = region, true = individual
+      cut: false     // false = edge, true = face
     };
 
     this.setupEventListeners();
@@ -81,6 +82,12 @@ export class Toolbar {
           return;
         }
 
+        if (mode === Modes.CUT && isDoubleTap) {
+          // Toggle cut edge/face mode
+          this.toggleCutMode();
+          return;
+        }
+
         this.app.setMode(mode);
       });
     });
@@ -117,6 +124,30 @@ export class Toolbar {
   setInsetMode(individual) {
     this.toolModes.inset = individual;
     this.btnInset.classList.toggle('mode-alternate', individual);
+  }
+
+  /**
+   * Toggle cut tool edge/face mode
+   */
+  toggleCutMode() {
+    this.toolModes.cut = !this.toolModes.cut;
+
+    // Update the button visual
+    this.btnCut.classList.toggle('mode-alternate', this.toolModes.cut);
+
+    // Notify the cut tool
+    if (this.app.cutOverlay) {
+      this.app.cutOverlay.setMode(this.toolModes.cut ? 'face' : 'edge');
+    }
+  }
+
+  /**
+   * Set cut mode directly (for keyboard shortcut sync)
+   * @param {boolean} faceMode - Whether face mode is enabled
+   */
+  setCutMode(faceMode) {
+    this.toolModes.cut = faceMode;
+    this.btnCut.classList.toggle('mode-alternate', faceMode);
   }
 
   /**

@@ -941,23 +941,23 @@ Mobile adjustments for split mode
 }
 
 
-.icon-btn.active, .mode-btn.active, .icon-btn:active:not(:disabled) {
+/* icon-btn.active commented out - mode-toolbar shows current mode instead */
+.mode-btn.active, .icon-btn:active:not(:disabled) {
   background: var(--bg-button-active);
 }
 
-.icon-btn.active .material-symbols-outlined,
 .mode-btn.active .material-symbols-outlined {
   color: var(--text-primary);
 }
 
 
 /* Tool mode toggle - alternate mode (stroke instead of solid) */
-.icon-btn.active.mode-alternate {
+/* icon-btn.active.mode-alternate commented out - mode-toolbar shows this instead */
+.mode-btn.active.mode-alternate {
   background: var(--bg-button);
   border: 2px solid var(--accent);
 }
 
-.icon-btn.active.mode-alternate .material-symbols-outlined,
 .mode-btn.active.mode-alternate .material-symbols-outlined {
   color: var(--accent);
 }
