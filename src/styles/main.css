@@ -3,10 +3,10 @@
   --bg-primary: #1D1D20;
   --bg-container: #000000;
   --bg-button: #111111;
-  --bg-button-active: #3A3B4A;
-  --bg-button-hover: #222222;
+  --bg-button-active: #444873;
+  --bg-button-hover: #3e3e52;
 
-  --text-primary: #E3E3E3;
+  --text-primary: #cdcfe1;
   --text-secondary: #868686;
   --text-muted: #494950;
 
@@ -28,6 +28,9 @@
   --icon-size: 24px;
   --container-padding: 4px;
   --button-gap: 4px;
+
+  --frame-gap: 12px;
+  --frame-gap-extra: 12px;
 
   --transition: 150ms ease;
 }
@@ -113,7 +116,7 @@ body {
   height: 0;
   border-top: 2px solid var(--text-secondary);
   opacity: 0.5;
-  margin: 6px 0;
+  margin: 4px 0;
 }
 
 .tool-divider {
@@ -130,79 +133,6 @@ body {
   gap: var(--button-gap);
 }
 
-/* ========================================
-   Icon Buttons
-   ======================================== */
-
-.icon-btn {
-  width: var(--button-size);
-  height: var(--button-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-button);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition);
-}
-
-.icon-btn:hover:not(:disabled) {
-  background: var(--bg-button-hover);
-}
-
-.icon-btn:hover:not(:disabled) .material-symbols-outlined {
-  color: var(--text-primary);
-}
-
-.icon-btn:active:not(:disabled) {
-  background: var(--bg-button-active);
-}
-
-.icon-btn.active {
-  background: var(--bg-button-active);
-}
-
-.icon-btn.active .material-symbols-outlined {
-  color: var(--text-primary);
-}
-
-/* Tool mode toggle - alternate mode (stroke instead of solid) */
-.icon-btn.active.mode-alternate {
-  background: var(--bg-button);
-  border: 2px solid var(--accent);
-}
-
-.icon-btn.active.mode-alternate .material-symbols-outlined {
-  color: var(--accent);
-}
-
-.icon-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Enter button (taller) */
-.icon-btn.enter-btn {
-  height: var(--button-enter-height);
-}
-
-.icon-btn.enter-btn.ready {
-  background: var(--accent);
-}
-
-.icon-btn.enter-btn.ready .material-symbols-outlined {
-  color: white;
-}
-
-.icon-btn.enter-btn.ready:hover {
-  background: var(--accent-hover);
-}
-
-/* Skip button */
-.icon-btn.skip-btn {
-  background: var(--bg-button);
-}
 
 /* ========================================
    Left Bar (Top Left)
@@ -210,12 +140,12 @@ body {
 
 #left-bar {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: var(--frame-gap);;
+  left: var(--frame-gap);;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   z-index: 100;
 }
 
@@ -251,13 +181,14 @@ body {
 }
 
 /* ========================================
-   Action Bar (Bottom Left)
+   Action Bar (Left)
    ======================================== */
 
 #action-bar {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
+  bottom: 20%;
+  /* transform: translateY(50%); */
+  left: var(--frame-gap);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -265,13 +196,35 @@ body {
   z-index: 100;
 }
 
+
+/* ========================================
+   Mode toolbar (for cut/inset tools)
+   ======================================== */
+
+
+#mode-toolbar,
+#inset-mode-toolbar {
+  position: absolute;
+  right: var(--frame-gap);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-container);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+
 /* ========================================
    Bottom Bar (Tool Toolbar)
    ======================================== */
 
 #bottom-bar {
   position: absolute;
-  bottom: 12px;
+  bottom: var(--frame-gap-extra);
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -283,16 +236,17 @@ body {
 
 #right-bar {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: var(--frame-gap);;
+  right: var(--frame-gap);;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--container-padding);
+  /*padding: var(--container-padding); */
   background: var(--bg-container);
   border-radius: var(--radius-md);
   z-index: 100;
 }
+
 
 
 /* ========================================
@@ -338,11 +292,11 @@ body {
 
 #instructions {
   position: absolute;
-  top: 12px;
-  left: 80px;
+  top: var(--frame-gap);
+  left: var(--frame-gap);;
   background: var(--bg-container);
   border-radius: var(--radius-md);
-  padding: 12px 16px;
+  padding: var(--frame-gap);
   max-width: 300px;
   z-index: 100;
 }
@@ -461,7 +415,7 @@ body {
   padding: 12px 20px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--frame-gap);
   z-index: 100;
   min-width: 280px;
 }
@@ -693,7 +647,12 @@ body {
   color: #AAAAAA;
 }
 
-/* Responsive adjustments */
+
+
+/* ========================================
+Responsive adjustments 
+======================================== */
+
 @media (max-width: 900px) {
   .shortcuts-content {
     padding: 32px 24px;
@@ -909,8 +868,22 @@ body {
   cursor: pointer;
 }
 
-/* Mobile adjustments for split mode */
+
+
+
+
+/* ========================================
+Mobile adjustments for split mode 
+======================================== */
+
+
 @media (max-width: 768px) {
+
+:root {
+   --frame-gap: 8px;
+   --frame-gap-extra: 18px;
+}
+
   #app.split-mode {
     flex-direction: column;
   }
@@ -940,50 +913,81 @@ body {
   }
 }
 
-/* Mode toolbar (for cut/inset tools) */
-#mode-toolbar,
-#inset-mode-toolbar {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: var(--bg-container);
-  border-radius: var(--radius-md);
-  padding: 6px;
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 100;
-}
 
-.mode-btn {
-  width: 44px;
-  height: 44px;
+
+/* ========================================
+   Buttons
+   ======================================== */
+
+.icon-btn, .mode-btn {
+  width: var(--button-size);
+  height: var(--button-size);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary);
-  border: 1px solid transparent;
+  background: var(--bg-button);
+  border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background var(--transition);
 }
 
-.mode-btn:hover {
-  background: var(--bg-tertiary);
+.icon-btn:hover:not(:disabled), .mode-btn:hover  {
+  background: var(--bg-button-hover);
+}
+
+.icon-btn:hover:not(:disabled) .material-symbols-outlined {
   color: var(--text-primary);
 }
 
-.mode-btn.active {
+
+.icon-btn.active, .mode-btn.active, .icon-btn:active:not(:disabled) {
   background: var(--bg-button-active);
-  color: var(--text-primary);
-  border-color: transparent;
 }
 
-.mode-btn .material-symbols-outlined {
-  font-size: 22px;
+.icon-btn.active .material-symbols-outlined,
+.mode-btn.active .material-symbols-outlined {
+  color: var(--text-primary);
 }
+
+
+/* Tool mode toggle - alternate mode (stroke instead of solid) */
+.icon-btn.active.mode-alternate {
+  background: var(--bg-button);
+  border: 2px solid var(--accent);
+}
+
+.icon-btn.active.mode-alternate .material-symbols-outlined,
+.mode-btn.active.mode-alternate .material-symbols-outlined {
+  color: var(--accent);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Enter button (taller) */
+.icon-btn.enter-btn {
+  height: var(--button-enter-height);
+}
+
+.icon-btn.enter-btn.ready {
+  background: var(--accent);
+}
+
+.icon-btn.enter-btn.ready .material-symbols-outlined {
+  color: white;
+}
+
+.icon-btn.enter-btn.ready:hover {
+  background: var(--accent-hover);
+}
+
+/* Skip button */
+.icon-btn.skip-btn {
+  background: var(--bg-button);
+}
+
+
 

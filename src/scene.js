@@ -32,7 +32,7 @@ export class SceneManager {
   initCamera() {
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
-    this.camera.position.set(0, 0, 5);
+    this.camera.position.set(0, 0, 3);
     this.camera.lookAt(0, 0, 0);
   }
 
@@ -92,6 +92,12 @@ export class SceneManager {
   }
 
   initGrid() {
+
+
+
+    // Create axis gizmo for corner display
+    this.createAxisGizmo();
+    
     // Grid aligned with XY plane (same as image plane)
     this.grid = new THREE.GridHelper(10, 100, 0x444444, 0x333333);
     // Rotate to XY plane (default is XZ)
@@ -102,10 +108,9 @@ export class SceneManager {
     // Create custom axis lines (thicker than default)
     this.createAxisHelper();
 
-    // Create axis gizmo for corner display
-    this.createAxisGizmo();
   }
 
+  
   /**
    * Create thick axis lines at origin
    */
@@ -159,7 +164,7 @@ export class SceneManager {
 
     // Create gizmo camera
     this.gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
-    this.gizmoCamera.position.set(0, 0, 3);
+    this.gizmoCamera.position.set(0, 0, 5);
 
     const lineLength = 0.6;
 
@@ -261,7 +266,7 @@ export class SceneManager {
   }
 
   /**
-   * Render the axis gizmo in the bottom-left corner
+   * Render the axis gizmo in the bottom-right corner
    */
   renderGizmo() {
     if (!this.gizmoScene || !this.gizmoCamera) return;
@@ -273,11 +278,16 @@ export class SceneManager {
 
     // Set viewport for gizmo (bottom-right corner)
     const gizmoSize = 100;
-    const margin = 16;
+    const margin = 8;
     const container = this.canvas.parentElement;
     const gizmoX = container.clientWidth - gizmoSize - margin;
 
-    // Save current state
+
+    // Preserve the current auto-clear state
+    const oldAutoClear = this.renderer.autoClear;
+    this.renderer.autoClear = false;
+
+    // set viewport & scissor for the gizmo
     this.renderer.setViewport(
       gizmoX,
       margin,
@@ -292,14 +302,14 @@ export class SceneManager {
     );
     this.renderer.setScissorTest(true);
 
-    // Render gizmo without clearing (transparent background)
-    this.renderer.autoClear = false;
+    // clear the depth buffer so the gizmo is not occluded by grid
+    this.renderer.clearDepth();
     this.renderer.render(this.gizmoScene, this.gizmoCamera);
-    this.renderer.autoClear = true;
 
-    // Restore full viewport
+    // Restore state
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, container.clientWidth, container.clientHeight);
+    this.renderer.autoClear = oldAutoClear;
   }
 
   /**
@@ -349,7 +359,7 @@ export class SceneManager {
    */
   resetCamera() {
     // Position camera in front of the XY plane, looking at origin
-    this.camera.position.set(0, 0, 4);
+    this.camera.position.set(0, 0, 3);
     this.camera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();

@@ -16,7 +16,8 @@
 </head>
 <body>
   <div id="app">
-    <!-- Top Left Bar -->
+
+    <!-- File bar - Top Left Bar -->
     <aside id="left-bar">
       <div class="bar-container">
         <button id="btn-import" class="icon-btn" title="Import Image">
@@ -30,8 +31,6 @@
         </button>
       </div>
 
-      <!-- <div class="bar-divider"></div> -->
-
       <!-- Recent Images Panel -->
       <div id="recent-panel" class="bar-container" style="display: none;">
         <div id="recent-images">
@@ -40,22 +39,25 @@
       </div>
     </aside>
 
+
     <!-- Action Bar (Bottom Left) -->
     <aside id="action-bar">
-      <!-- Skip button (shown during perspective mode) -->
-      <button id="btn-skip" class="icon-btn skip-btn" style="display: none;" title="Skip [ESC]">
-        <span class="material-symbols-outlined">step_over</span>
-      </button>
-      <!-- Enter/Confirm button -->
-      <button id="btn-approve" class="icon-btn enter-btn" style="display: none;" title="Confirm [Space]">
-        <span class="material-symbols-outlined">keyboard_return</span>
-      </button>
-      <button id="btn-undo" class="icon-btn" disabled title="Undo [Ctrl+Z]">
-        <span class="material-symbols-outlined">undo</span>
-      </button>
-      <button id="btn-redo" class="icon-btn" disabled title="Redo [Ctrl+Shift+Z]">
-        <span class="material-symbols-outlined">redo</span>
-      </button>
+       <div class="bar-container">
+          <!-- Skip button (shown during perspective mode) -->
+          <button id="btn-skip" class="icon-btn skip-btn" style="display: none;" title="Skip [ESC]">
+            <span class="material-symbols-outlined">step_over</span>
+          </button>
+          <!-- Enter/Confirm button -->
+          <button id="btn-approve" class="icon-btn enter-btn" style="display: none;" title="Confirm [Space]">
+            <span class="material-symbols-outlined">keyboard_return</span>
+          </button>
+          <button id="btn-undo" class="icon-btn" disabled title="Undo [Ctrl+Z]">
+            <span class="material-symbols-outlined">undo</span>
+          </button>
+          <button id="btn-redo" class="icon-btn" disabled title="Redo [Ctrl+Shift+Z]">
+            <span class="material-symbols-outlined">redo</span>
+          </button>
+      </div>
     </aside>
 
     <!-- Ratio Slider (shown during perspective mode) -->
@@ -66,18 +68,19 @@
       <input type="range" id="ratio-slider" min="0.5" max="2.0" value="1.0" step="0.01">
     </div>
 
-    <!-- Bottom Toolbar -->
+    
+    <!-- Bottom Toolbar Toolbar -->
     <nav id="bottom-bar">
       <div class="bar-container horizontal">
         <div class="tool-group">
           <button id="btn-perspective" class="icon-btn" disabled title="Perspective [P]">
-            <span class="material-symbols-outlined">border_all</span>
+            <span class="material-symbols-outlined">activity_zone</span>
           </button>
           <button id="btn-cut" class="icon-btn" disabled title="Cut [C]">
             <span class="material-symbols-outlined">content_cut</span>
           </button>
           <button id="btn-extrude" class="icon-btn" disabled title="Extrude [E]">
-            <span class="material-symbols-outlined">step_out</span>
+            <span class="material-symbols-outlined">text_select_move_up</span>
           </button>
           <button id="btn-inset" class="icon-btn" disabled title="Inset [F]">
             <span class="material-symbols-outlined">select_all</span>
@@ -89,6 +92,7 @@
         </button>
       </div>
     </nav>
+
 
     <!-- Top Right Bar -->
     <aside id="right-bar">
@@ -142,7 +146,7 @@
             Skip
           </button>
           <button id="align-confirm" class="panel-btn primary" disabled title="Confirm alignment">
-            <span class="material-symbols-outlined">check</span>
+            
             Confirm
           </button>
         </div>
@@ -155,22 +159,26 @@
 
       <!-- Mode toolbar for cut tool (right side) -->
       <div id="mode-toolbar" style="display: none;">
+        <div class="bar-container">
         <button id="mode-edge" class="mode-btn active" title="Edge mode - click on edges">
-          <span class="material-symbols-outlined">conversion_path</span>
+          <span class="material-symbols-outlined">border_horizontal</span>
         </button>
         <button id="mode-face" class="mode-btn" title="Face mode - click on faces">
-          <span class="material-symbols-outlined">rectangle</span>
+          <span class="material-symbols-outlined">square</span>
         </button>
+        </div>
       </div>
 
       <!-- Mode toolbar for inset tool (right side) -->
       <div id="inset-mode-toolbar" style="display: none;">
-        <button id="inset-mode-grouped" class="mode-btn active" title="Grouped - inset faces as region">
-          <span class="material-symbols-outlined">stack_group</span>
-        </button>
-        <button id="inset-mode-individual" class="mode-btn" title="Individual - inset each face separately">
-          <span class="material-symbols-outlined">view_column_2</span>
-        </button>
+        <div class="bar-container"> 
+          <button id="inset-mode-grouped" class="mode-btn active" title="Grouped - inset faces as region">
+            <span class="material-symbols-outlined">stack_group</span>
+          </button>
+          <button id="inset-mode-individual" class="mode-btn" title="Individual - inset each face separately">
+            <span class="material-symbols-outlined">view_column_2</span>
+          </button>
+        </div>
       </div>
 
       <!-- 2D Overlay for perspective lines (legacy - kept for compatibility) -->

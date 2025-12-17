@@ -36,7 +36,7 @@ export class AlignmentPanel {
     this.isPanning = false;
     this.lastPanPoint = null;
     this.minScale = 0.5;
-    this.maxScale = 5.0;
+    this.maxScale = 2.0;
 
     // Touch gesture state
     this.touches = [];
@@ -54,9 +54,9 @@ export class AlignmentPanel {
     // Colors
     this.colors = {
       line: '#949DFF',
-      point: '#E3E3E3',
+      point: '#949DFF',
       pointHover: '#949DFF',
-      pointDrag: '#22c55e',
+      pointDrag: '#bac4e9ff',
       guide: 'rgba(148, 157, 255, 0.3)'
     };
 
@@ -674,7 +674,7 @@ export class AlignmentPanel {
 
     // Draw connecting lines between points
     if (this.points.length > 0) {
-      const lineWidth = 3 / totalScale;
+      const lineWidth = 5 / totalScale;
 
       ctx.beginPath();
       ctx.lineWidth = lineWidth;
@@ -693,15 +693,15 @@ export class AlignmentPanel {
 
     // Draw corner points - LARGE markers for easy visibility
     // 20px radius in screen space, converted to image space
-    const markerRadius = 20 / totalScale;
-    const borderWidth = 3 / totalScale;
-    const fontSize = 16 / totalScale;
+    const markerRadius = 10 / totalScale;
+    const borderWidth = 6 / totalScale;
+    const fontSize = 14 / totalScale;
 
     this.points.forEach((p, i) => {
       // Outer ring for better visibility
       ctx.beginPath();
-      ctx.arc(p.x, p.y, markerRadius + borderWidth, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.arc(p.x, p.y, markerRadius + borderWidth * 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(30, 34, 76, 0.4)';
       ctx.fill();
 
       // Main marker
@@ -718,17 +718,17 @@ export class AlignmentPanel {
       }
       ctx.fill();
 
-      // Border
-      ctx.lineWidth = borderWidth;
-      ctx.strokeStyle = this.colors.line;
-      ctx.stroke();
+      // innerBorder
+    //   ctx.lineWidth = borderWidth;
+    //  ctx.strokeStyle = this.colors.line;
+    //  ctx.stroke();
 
       // Point number
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = 'rgba(30, 34, 76, 0.85)';
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText((i + 1).toString(), p.x, p.y);
+      ctx.fillText((i + 1).toString(), p.x, p.y + fontSize * 0.05);  // <-- Lower by ~20% of font size
     });
 
     ctx.restore();
@@ -737,13 +737,13 @@ export class AlignmentPanel {
     if (this.scale !== 1.0) {
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(10, 10, 70, 28);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      ctx.fillRect(12, 8, 70, 28);
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${Math.round(this.scale * 100)}%`, 18, 24);
+      ctx.fillText(`${Math.round(this.scale * 100)}%`, 24, 24);
       ctx.restore();
     }
   }
