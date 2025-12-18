@@ -91,13 +91,14 @@ export class EditableMesh {
     this.wireframe = null; // Wireframe overlay
     this.triangleToFace = []; // Maps triangle index to Face object
 
-    // Wireframe material - renders on top with depth test disabled
+    // Wireframe material - depth tested so back-facing wireframes are occluded
     this.wireframeMaterial = new THREE.LineBasicMaterial({
       color: 0xFF9900,  // ImageEdge color from design
       linewidth: 2,
       transparent: true,
-      opacity: 0.4,
-      depthTest: false  // Always render on top
+      opacity: 0.5,
+      depthTest: true,   // Test against depth buffer (occlude behind geometry)
+      depthWrite: false  // Don't write to depth buffer (wireframes don't occlude each other)
     });
   }
 
@@ -251,14 +252,23 @@ export class EditableMesh {
    */
   rebuildWireframe() {
     // Build wireframe lines from face edges
+    // Offset slightly along face normal to prevent z-fighting with mesh surface
     const wireframePositions = [];
+    const normalOffset = 0.001; // Small offset to prevent z-fighting
 
     this.faces.forEach(face => {
+      const normal = face.normal;
+      const offset = {
+        x: normal.x * normalOffset,
+        y: normal.y * normalOffset,
+        z: normal.z * normalOffset
+      };
+
       const edges = face.getEdges();
       edges.forEach(edge => {
         wireframePositions.push(
-          edge.start.x, edge.start.y, edge.start.z,
-          edge.end.x, edge.end.y, edge.end.z
+          edge.start.x + offset.x, edge.start.y + offset.y, edge.start.z + offset.z,
+          edge.end.x + offset.x, edge.end.y + offset.y, edge.end.z + offset.z
         );
       });
     });
@@ -272,7 +282,7 @@ export class EditableMesh {
     if (!this.wireframe) {
       this.wireframe = new THREE.LineSegments(wireframeGeometry, this.wireframeMaterial);
       this.wireframe.name = 'meshWireframe';
-      this.wireframe.renderOrder = 1; // Render on top
+      this.wireframe.renderOrder = 1; // Render after mesh
     } else {
       this.wireframe.geometry.dispose();
       this.wireframe.geometry = wireframeGeometry;
