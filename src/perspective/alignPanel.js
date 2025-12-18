@@ -36,12 +36,15 @@ export class AlignmentPanel {
     this.isPanning = false;
     this.lastPanPoint = null;
     this.minScale = 0.5;
-    this.maxScale = 2.0;
+    this.maxScale = 5.0;
 
     // Touch gesture state
     this.touches = [];
     this.initialPinchDistance = null;
     this.initialScale = 1.0;
+    this.initialPinchCenter = null;  // Screen coords of pinch center at start
+    this.initialPanX = 0;            // Pan state at start of pinch
+    this.initialPanY = 0;
 
     // Pointer state for tap vs drag detection
     this.pointerStartPos = null;
@@ -348,6 +351,17 @@ export class AlignmentPanel {
       e.preventDefault();
       this.initialPinchDistance = this.getTouchDistance(this.touches);
       this.initialScale = this.scale;
+      this.initialPanX = this.panX;
+      this.initialPanY = this.panY;
+
+      // Record the initial pinch center (in screen coords relative to canvas)
+      const rect = this.canvas.getBoundingClientRect();
+      const center = this.getTouchCenter(this.touches);
+      this.initialPinchCenter = {
+        x: center.x - rect.left,
+        y: center.y - rect.top
+      };
+
       this.isPanning = false;
     } else if (this.touches.length === 1) {
       // Could be either a tap to place point or start of pan
@@ -363,19 +377,52 @@ export class AlignmentPanel {
     this.touches = Array.from(e.touches);
     const rect = this.canvas.getBoundingClientRect();
 
-    if (this.touches.length === 2 && this.initialPinchDistance) {
-      // Pinch zoom
+    if (this.touches.length === 2 && this.initialPinchDistance && this.initialPinchCenter) {
+      // Pinch zoom + pan
       e.preventDefault();
 
+      // Calculate new scale based on pinch distance change
       const currentDistance = this.getTouchDistance(this.touches);
       const scaleFactor = currentDistance / this.initialPinchDistance;
-      const newScale = this.initialScale * scaleFactor;
+      let newScale = this.initialScale * scaleFactor;
+      newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
 
-      const center = this.getTouchCenter(this.touches);
-      const screenX = center.x - rect.left;
-      const screenY = center.y - rect.top;
+      // Calculate how much the pinch center has moved (for simultaneous pan)
+      const currentCenter = this.getTouchCenter(this.touches);
+      const currentCenterScreen = {
+        x: currentCenter.x - rect.left,
+        y: currentCenter.y - rect.top
+      };
+      const centerDeltaX = currentCenterScreen.x - this.initialPinchCenter.x;
+      const centerDeltaY = currentCenterScreen.y - this.initialPinchCenter.y;
 
-      this.zoomAt(screenX, screenY, newScale);
+      // Use the INITIAL pinch center as the zoom anchor point
+      // This prevents jumping as fingers move
+      const anchorX = this.initialPinchCenter.x;
+      const anchorY = this.initialPinchCenter.y;
+
+      // Get the image point that was under the initial pinch center
+      // (using initial pan and scale values)
+      const centerX = this.containerWidth / 2;
+      const centerY = this.containerHeight / 2;
+      const imgCenterX = this.image.width / 2;
+      const imgCenterY = this.image.height / 2;
+      const initialTotalScale = this.baseScale * this.initialScale;
+
+      const imagePointX = (anchorX - centerX - this.initialPanX) / initialTotalScale + imgCenterX;
+      const imagePointY = (anchorY - centerY - this.initialPanY) / initialTotalScale + imgCenterY;
+
+      // Calculate where that image point would appear with the new scale (and no pan change yet)
+      const newTotalScale = this.baseScale * newScale;
+      const newScreenX = (imagePointX - imgCenterX) * newTotalScale + centerX + this.initialPanX;
+      const newScreenY = (imagePointY - imgCenterY) * newTotalScale + centerY + this.initialPanY;
+
+      // Adjust pan to keep the anchor point stationary, then add the center movement delta
+      this.scale = newScale;
+      this.panX = this.initialPanX + (anchorX - newScreenX) + centerDeltaX;
+      this.panY = this.initialPanY + (anchorY - newScreenY) + centerDeltaY;
+
+      this.draw();
     } else if (this.touches.length === 1 && this.lastPanPoint && !this.isDragging) {
       // Pan with single finger (if not dragging a point)
       const dx = this.touches[0].clientX - this.lastPanPoint.x;
@@ -403,7 +450,10 @@ export class AlignmentPanel {
     // If we were pinching and now have fewer than 2 touches, reset pinch state
     if (this.initialPinchDistance && e.touches.length < 2) {
       this.initialPinchDistance = null;
+      this.initialPinchCenter = null;
       this.initialScale = this.scale;
+      this.initialPanX = this.panX;
+      this.initialPanY = this.panY;
     }
 
     // If we were panning with single touch and it ended without significant movement, treat as tap
