@@ -1146,8 +1146,8 @@ export class CutOverlay {
           ctx.fill();
         }
       }
-    } else {
-      // Edge mode visualization (original behavior)
+    } else if (!this.pendingCut) {
+      // Edge mode visualization (only when no pending cut - pending cut has its own white line)
 
       // Determine if current hover is a valid cut target
       // Use ID comparison for robustness

@@ -42,18 +42,16 @@ export class HistoryManager {
    * @returns {object|null} - Previous state or null if nothing to undo
    */
   undo(currentState) {
-    if (this.undoStack.length === 0) return null;
+    // Need at least 2 states: initial state + at least one action to undo
+    if (this.undoStack.length < 2) return null;
 
-    // Save current state to redo stack
-    const currentSnapshot = {
-      state: JSON.parse(JSON.stringify(currentState)),
-      description: 'Current state',
-      timestamp: Date.now()
-    };
+    // Pop the current state from undo stack and save to redo stack
+    // (The top of undoStack is the state after the last action)
+    const currentSnapshot = this.undoStack.pop();
     this.redoStack.push(currentSnapshot);
 
-    // Get previous state
-    const previousSnapshot = this.undoStack.pop();
+    // Return the previous state (now at the top of the stack)
+    const previousSnapshot = this.undoStack[this.undoStack.length - 1];
     this.notifyListeners();
 
     return previousSnapshot.state;
@@ -67,16 +65,10 @@ export class HistoryManager {
   redo(currentState) {
     if (this.redoStack.length === 0) return null;
 
-    // Save current state to undo stack
-    const currentSnapshot = {
-      state: JSON.parse(JSON.stringify(currentState)),
-      description: 'Current state',
-      timestamp: Date.now()
-    };
-    this.undoStack.push(currentSnapshot);
-
-    // Get next state
+    // Pop from redo stack and push to undo stack
     const nextSnapshot = this.redoStack.pop();
+    this.undoStack.push(nextSnapshot);
+
     this.notifyListeners();
 
     return nextSnapshot.state;
@@ -87,7 +79,8 @@ export class HistoryManager {
    * @returns {boolean}
    */
   canUndo() {
-    return this.undoStack.length > 0;
+    // Need at least 2 states: initial + one action to undo
+    return this.undoStack.length > 1;
   }
 
   /**
