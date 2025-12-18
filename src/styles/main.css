@@ -287,6 +287,38 @@ body {
 
 
 /* ========================================
+   Distance Indicator (Extrude/Inset)
+   ======================================== */
+
+#distance-indicator {
+  position: absolute;
+  top: var(--frame-gap);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-container);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+}
+
+#distance-indicator #distance-label {
+  color: var(--text-secondary);
+}
+
+#distance-indicator #distance-value {
+  color: var(--accent);
+  font-weight: 600;
+  min-width: 3em;
+  display: inline-block;
+  text-align: right;
+}
+
+/* ========================================
    Instructions Tooltip
    ======================================== */
 

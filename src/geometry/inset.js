@@ -426,6 +426,9 @@ export class InsetTool {
     this.onInsetComplete = null;
     this.onFaceSelected = null;  // Called when face is tapped
     this.onModeToggle = null;    // Called when individual mode is toggled
+    this.onDragStart = null;     // Called when drag starts
+    this.onDragUpdate = null;    // Called during drag with current thickness
+    this.onDragEnd = null;       // Called when drag ends
 
     // Max inset distance (calculated dynamically based on face size)
     this.maxInsetDistance = 0;
@@ -693,6 +696,11 @@ export class InsetTool {
 
       // Calculate max safe inset distance based on shortest edge across all selected faces
       this.maxInsetDistance = this.calculateMaxInsetDistance();
+
+      // Notify drag start
+      if (this.onDragStart) {
+        this.onDragStart();
+      }
     }
 
     if (this.isDragging) {
@@ -704,6 +712,11 @@ export class InsetTool {
       // Use 90% of max safe distance to avoid edge cases
       this.currentThickness = Math.min(normalizedDrag, 0.95) * this.maxInsetDistance * 0.9;
       this.updatePreview();
+
+      // Notify drag update with current thickness
+      if (this.onDragUpdate) {
+        this.onDragUpdate(this.currentThickness);
+      }
     }
   }
 
@@ -734,6 +747,11 @@ export class InsetTool {
 
     this.isInsetting = false;
     this.sceneManager.setControlsEnabled(true);
+
+    // Notify drag end if we were dragging
+    if (this.isDragging && this.onDragEnd) {
+      this.onDragEnd();
+    }
 
     // Check if meaningful inset occurred (at least 5% of max)
     const minThreshold = (this.maxInsetDistance || 0.1) * 0.05;

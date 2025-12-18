@@ -253,6 +253,9 @@ export class ExtrudeTool {
     // Callbacks
     this.onExtrudeComplete = null;
     this.onFaceSelected = null;  // Called when face is tapped
+    this.onDragStart = null;     // Called when drag starts
+    this.onDragUpdate = null;    // Called during drag with current distance
+    this.onDragEnd = null;       // Called when drag ends
 
     // Sensitivity
     this.sensitivity = 0.01;
@@ -437,12 +440,20 @@ export class ExtrudeTool {
       }
       // Hide gizmo during drag
       this.removeGizmo();
+      // Notify drag start
+      if (this.onDragStart) {
+        this.onDragStart();
+      }
     }
 
     if (this.isDragging) {
       const dragDelta = this.startY - e.clientY;
       this.currentDistance = dragDelta * this.sensitivity;
       this.updatePreview();
+      // Notify drag update with current distance
+      if (this.onDragUpdate) {
+        this.onDragUpdate(this.currentDistance);
+      }
     }
   }
 
@@ -451,6 +462,11 @@ export class ExtrudeTool {
 
     this.isExtruding = false;
     this.sceneManager.setControlsEnabled(true);
+
+    // Notify drag end if we were dragging
+    if (this.isDragging && this.onDragEnd) {
+      this.onDragEnd();
+    }
 
     if (this.isDragging && Math.abs(this.currentDistance) > 0.01) {
       // Execute extrusion immediately on release

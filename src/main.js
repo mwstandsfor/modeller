@@ -96,6 +96,9 @@ class App {
       this.selectedFaces = faces;
       this.updateUI();
     };
+    this.extrudeTool.onDragStart = () => this.showDistanceIndicator('Extrude', 0);
+    this.extrudeTool.onDragUpdate = (distance) => this.updateDistanceIndicator(distance);
+    this.extrudeTool.onDragEnd = () => this.hideDistanceIndicator();
 
     this.insetTool = new InsetTool(this.scene, this.selectTool);
     this.insetTool.onInsetComplete = (faces, thickness, individualMode) => this.onInsetComplete(faces, thickness, individualMode);
@@ -103,6 +106,9 @@ class App {
       this.selectedFaces = faces;
       this.updateUI();
     };
+    this.insetTool.onDragStart = () => this.showDistanceIndicator('Inset', 0);
+    this.insetTool.onDragUpdate = (thickness) => this.updateDistanceIndicator(thickness);
+    this.insetTool.onDragEnd = () => this.hideDistanceIndicator();
 
     // State
     this.imagePlane = null;
@@ -139,6 +145,9 @@ class App {
     this.historyBtn = document.getElementById('btn-history');
     this.gridBtn = document.getElementById('btn-grid');
     this.snapBtn = document.getElementById('btn-snap');
+    this.distanceIndicator = document.getElementById('distance-indicator');
+    this.distanceLabel = document.getElementById('distance-label');
+    this.distanceValue = document.getElementById('distance-value');
     this.ratioControl = document.getElementById('ratio-control');
     this.ratioSlider = document.getElementById('ratio-slider');
     this.ratioValueDisplay = document.getElementById('ratio-value');
@@ -553,6 +562,32 @@ class App {
   toggleGridSnap() {
     this.gridSnap = !this.gridSnap;
     this.snapBtn.classList.toggle('active', this.gridSnap);
+  }
+
+  /**
+   * Show distance indicator with label and value
+   * @param {string} label - Operation name (e.g., "Extrude", "Inset")
+   * @param {number} value - Distance value in scene units
+   */
+  showDistanceIndicator(label, value) {
+    this.distanceLabel.textContent = label;
+    this.distanceValue.textContent = Math.abs(value).toFixed(2);
+    this.distanceIndicator.style.display = 'block';
+  }
+
+  /**
+   * Update distance indicator value
+   * @param {number} value - Distance value in scene units
+   */
+  updateDistanceIndicator(value) {
+    this.distanceValue.textContent = Math.abs(value).toFixed(2);
+  }
+
+  /**
+   * Hide distance indicator
+   */
+  hideDistanceIndicator() {
+    this.distanceIndicator.style.display = 'none';
   }
 
   /**
