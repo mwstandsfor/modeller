@@ -47,16 +47,25 @@ export class Toolbar {
   }
 
   setupEventListeners() {
-    // Import button
+    // Import button - check for active session before opening file picker
     this.btnImport.addEventListener('click', () => {
-      this.fileInput.click();
+      if (this.app.hasActiveSession()) {
+        // Show confirmation before opening file picker
+        this.app.showConfirmModal(() => {
+          this.fileInput.click();
+        });
+      } else {
+        // No active session, open file picker directly
+        this.fileInput.click();
+      }
     });
 
-    // File input change
+    // File input change - import directly (confirmation already handled)
     this.fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) {
-        this.app.importImage(file);
+        // Import directly without confirmation (already confirmed before picker opened)
+        this.app.doImportImage(file);
       }
       // Reset input so same file can be selected again
       e.target.value = '';
