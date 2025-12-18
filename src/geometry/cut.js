@@ -445,10 +445,39 @@ export class CutOverlay {
         this.onModeChange(mode);
       }
 
-      // Reset state when switching modes
-      this.reset();
+      // Only reset partial state (not yet finalized cuts)
+      // Preserve pendingCut so finalized lines stay visible when switching modes
+      if (!this.pendingCut) {
+        this.reset();
+      } else {
+        // Clear only the mode-specific hover/partial state, keep pendingCut
+        this.clearPartialState();
+      }
       this.draw();
     }
+  }
+
+  /**
+   * Clear partial state (start/hover points) without clearing pending cut
+   */
+  clearPartialState() {
+    // Edge mode state
+    this.startPoint = null;
+    this.startEdge = null;
+    this.startFace = null;
+    this.hoverEdge = null;
+    this.hoverFace = null;
+    this.hoverPoint = null;
+
+    // Face mode state
+    this.faceStartPoint = null;
+    this.faceEndPoint = null;
+    this.faceHoverPoint = null;
+
+    // Clear drag state
+    this.isDragging = false;
+    this.dragTarget = null;
+    this.wasDragging = false;
   }
 
   /**
@@ -669,7 +698,7 @@ export class CutOverlay {
 
   /**
    * Check if a screen position is near an existing cut point
-   * @returns {string|null} - 'start', 'faceStart', or null
+   * @returns {string|null} - 'start', 'end', 'faceStart', 'faceEnd', 'pendingStart', 'pendingEnd', or null
    */
   getPointAtPosition(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
@@ -677,18 +706,45 @@ export class CutOverlay {
     const y = clientY - rect.top;
     const threshold = 20; // pixels
 
+    // Check pending cut points first (highest priority - the finalized cut line)
+    if (this.pendingCut) {
+      const startScreen = this.worldToScreen(this.pendingCut.startPoint);
+      const endScreen = this.worldToScreen(this.pendingCut.endPoint);
+
+      const distStart = Math.hypot(x - startScreen.x, y - startScreen.y);
+      const distEnd = Math.hypot(x - endScreen.x, y - endScreen.y);
+
+      // Return the closer one if both are within threshold
+      if (distStart < threshold && distEnd < threshold) {
+        return distStart < distEnd ? 'pendingStart' : 'pendingEnd';
+      }
+      if (distStart < threshold) return 'pendingStart';
+      if (distEnd < threshold) return 'pendingEnd';
+    }
+
     if (this.mode === 'face') {
       // Check face start point
-      if (this.faceStartPoint && !this.pendingCut) {
+      if (this.faceStartPoint) {
         const screen = this.worldToScreen(this.faceStartPoint);
         const dist = Math.hypot(x - screen.x, y - screen.y);
         if (dist < threshold) return 'faceStart';
       }
+      // Check face end point (when hovering to place second point)
+      if (this.faceEndPoint) {
+        const screen = this.worldToScreen(this.faceEndPoint);
+        const dist = Math.hypot(x - screen.x, y - screen.y);
+        if (dist < threshold) return 'faceEnd';
+      }
     } else {
       // Edge mode - check start point
-      if (this.startPoint && !this.pendingCut) {
+      if (this.startPoint) {
         const dist = Math.hypot(x - this.startPoint.x, y - this.startPoint.y);
         if (dist < threshold) return 'start';
+      }
+      // Edge mode - check hover/end point
+      if (this.hoverPoint && this.hoverEdge) {
+        const dist = Math.hypot(x - this.hoverPoint.x, y - this.hoverPoint.y);
+        if (dist < threshold) return 'end';
       }
     }
 
@@ -809,21 +865,44 @@ export class CutOverlay {
 
     // Handle dragging of existing points
     if (this.isDragging && this.dragTarget) {
-      if (this.dragTarget === 'faceStart') {
+      if (this.dragTarget === 'pendingStart' || this.dragTarget === 'pendingEnd') {
+        // Dragging a pending cut endpoint - update in 3D space
+        const result = this.findEdgeAtPosition(e.clientX, e.clientY);
+        if (result) {
+          if (this.dragTarget === 'pendingStart') {
+            this.pendingCut.startPoint = result.edge.point.clone();
+          } else {
+            this.pendingCut.endPoint = result.edge.point.clone();
+          }
+        }
+      } else if (this.dragTarget === 'faceStart') {
         // Drag face start point to new position on face
         const result = this.findFaceAtPosition(e.clientX, e.clientY);
         if (result && result.face) {
           this.faceStartPoint = result.point.clone();
           this.startFace = result.face;
         }
+      } else if (this.dragTarget === 'faceEnd') {
+        // Drag face end point to new position on face
+        const result = this.findFaceAtPosition(e.clientX, e.clientY);
+        if (result && result.face) {
+          this.faceEndPoint = result.point.clone();
+        }
       } else if (this.dragTarget === 'start') {
-        // Drag edge start point along the same edge
+        // Drag edge start point to a new edge
         const result = this.findEdgeAtPosition(e.clientX, e.clientY);
         if (result) {
-          // Check if hovering the same edge or allow moving to a different edge
           this.startPoint = this.worldToScreen(result.edge.point);
           this.startEdge = result.edge;
           this.startFace = result.face;
+        }
+      } else if (this.dragTarget === 'end') {
+        // Drag edge end/hover point to a new edge
+        const result = this.findEdgeAtPosition(e.clientX, e.clientY);
+        if (result) {
+          this.hoverPoint = this.worldToScreen(result.edge.point);
+          this.hoverEdge = result.edge;
+          this.hoverFace = result.face;
         }
       }
       this.draw();
