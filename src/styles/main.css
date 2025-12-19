@@ -1,6 +1,7 @@
 /* CSS Variables - Dark Theme (Figma Design) */
 :root {
   --bg-primary: #1D1D20;
+  --bg-surface: #2A2A2E;
   --bg-container: #000000;
   --bg-button: #111111;
   --bg-button-active: #444873;
