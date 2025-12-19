@@ -97,6 +97,16 @@ export class Toolbar {
           return;
         }
 
+        // Handle perspective mode - warn if there's existing mesh work
+        if (mode === Modes.PERSPECTIVE && this.app.hasMesh) {
+          this.app.showConfirmModal(() => {
+            // Reset scene and enter perspective mode
+            this.app.resetSceneForPerspective();
+            this.app.setMode(mode);
+          }, 'Re-align Perspective?', 'This will clear your current model and start fresh with perspective alignment.');
+          return;
+        }
+
         this.app.setMode(mode);
       });
     });

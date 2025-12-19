@@ -157,9 +157,13 @@ class App {
 
     // Confirmation modal elements
     this.confirmModal = document.getElementById('confirm-modal');
+    this.confirmTitle = this.confirmModal.querySelector('.confirm-title');
+    this.confirmMessage = this.confirmModal.querySelector('.confirm-message');
     this.confirmOkBtn = document.getElementById('confirm-ok');
     this.confirmCancelBtn = document.getElementById('confirm-cancel');
     this.pendingConfirmAction = null;
+    this.defaultConfirmTitle = 'Start New Session?';
+    this.defaultConfirmMessage = 'Loading a new image will clear your current work. This cannot be undone.';
 
     // Setup confirmation modal buttons
     this.confirmOkBtn.addEventListener('click', () => this.executeConfirm());
@@ -499,9 +503,13 @@ class App {
   /**
    * Show confirmation modal
    * @param {Function} onConfirm - Action to execute when user confirms
+   * @param {string} [title] - Optional custom title
+   * @param {string} [message] - Optional custom message
    */
-  showConfirmModal(onConfirm) {
+  showConfirmModal(onConfirm, title, message) {
     this.pendingConfirmAction = onConfirm;
+    this.confirmTitle.textContent = title || this.defaultConfirmTitle;
+    this.confirmMessage.textContent = message || this.defaultConfirmMessage;
     this.confirmModal.style.display = 'flex';
   }
 
@@ -511,6 +519,9 @@ class App {
   hideConfirmModal() {
     this.pendingConfirmAction = null;
     this.confirmModal.style.display = 'none';
+    // Reset to default text
+    this.confirmTitle.textContent = this.defaultConfirmTitle;
+    this.confirmMessage.textContent = this.defaultConfirmMessage;
   }
 
   /**
@@ -1072,6 +1083,60 @@ class App {
     // Close any open panels
     this.recentPanel.style.display = 'none';
     this.historyBtn.classList.remove('active');
+  }
+
+  /**
+   * Reset scene for perspective re-alignment
+   * Clears the mesh but keeps the image so perspective can be re-done
+   */
+  resetSceneForPerspective() {
+    // Remove editable mesh and wireframe
+    if (this.editableMesh) {
+      this.scene.remove(this.editableMesh.mesh);
+      if (this.editableMesh.getWireframe()) {
+        this.scene.remove(this.editableMesh.getWireframe());
+      }
+      this.editableMesh.dispose();
+      this.editableMesh = null;
+    }
+
+    // Clear selection
+    this.selectedFaces = [];
+    if (this.selectTool) {
+      this.selectTool.clearSelection();
+    }
+
+    // Reset tool states
+    if (this.cutOverlay) {
+      this.cutOverlay.reset();
+    }
+    if (this.extrudeTool) {
+      this.extrudeTool.cancelPendingExtrusion?.();
+    }
+
+    // Clear history
+    this.history.clear();
+
+    // Clear pending actions
+    this.hideApproveButton();
+    this.pendingPerspectivePoints = null;
+    this.previewCanvas = null;
+    this.correctedCanvas = null;
+
+    // Reset mesh flag but keep image
+    this.hasMesh = false;
+
+    // Reset ratio
+    this.ratioScale = 1.0;
+    if (this.ratioSlider) {
+      this.ratioSlider.value = 1.0;
+    }
+    if (this.ratioValueDisplay) {
+      this.ratioValueDisplay.textContent = '1.00';
+    }
+
+    // Update UI
+    this.updateUI();
   }
 
   /**

@@ -431,7 +431,17 @@ export class ShortcutsManager {
         break;
 
       case 'perspective':
-        if (!toolbar.btnPerspective.disabled) app.setMode(Modes.PERSPECTIVE);
+        if (!toolbar.btnPerspective.disabled) {
+          // Warn if there's existing mesh work
+          if (app.hasMesh) {
+            app.showConfirmModal(() => {
+              app.resetSceneForPerspective();
+              app.setMode(Modes.PERSPECTIVE);
+            }, 'Re-align Perspective?', 'This will clear your current model and start fresh with perspective alignment.');
+          } else {
+            app.setMode(Modes.PERSPECTIVE);
+          }
+        }
         break;
 
       case 'cut':
