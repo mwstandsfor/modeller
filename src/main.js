@@ -1090,12 +1090,26 @@ class App {
    * Clears the mesh but keeps the image so perspective can be re-done
    */
   resetSceneForPerspective() {
+    // Remove preview mesh if it exists
+    if (this.previewMesh) {
+      this.scene.remove(this.previewMesh);
+      this.previewMesh.geometry.dispose();
+      this.previewMesh.material.dispose();
+      this.previewMesh = null;
+    }
+
     // Remove editable mesh and wireframe
     if (this.editableMesh) {
-      this.scene.remove(this.editableMesh.mesh);
-      if (this.editableMesh.getWireframe()) {
-        this.scene.remove(this.editableMesh.getWireframe());
+      // Remove mesh from scene
+      if (this.editableMesh.mesh) {
+        this.scene.remove(this.editableMesh.mesh);
       }
+      // Remove wireframe from scene
+      const wireframe = this.editableMesh.getWireframe();
+      if (wireframe) {
+        this.scene.remove(wireframe);
+      }
+      // Dispose of resources
       this.editableMesh.dispose();
       this.editableMesh = null;
     }
