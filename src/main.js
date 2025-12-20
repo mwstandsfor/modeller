@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createTextureFromCanvas, computePlaneSize, applyTextureToMesh, createPreviewMeshFromCanvas, disposeMesh } from './utils/threeUtils.js';
 import { SceneManager } from './scene.js';
 import { ModeManager, Modes } from './tools/modes.js';
 import { Toolbar } from './tools/toolbar.js';
@@ -37,9 +38,14 @@ class App {
     this.shortcuts = new ShortcutsManager(this);
 
     // Setup shortcuts button
-    document.getElementById('btn-shortcuts').addEventListener('click', () => {
-      this.shortcuts.toggle();
-    });
+    const btnShortcuts = document.getElementById('btn-shortcuts');
+    if (btnShortcuts) {
+      btnShortcuts.addEventListener('click', () => {
+        this.shortcuts.toggle();
+      });
+    } else {
+      console.warn('btn-shortcuts element not found');
+    }
 
     // Initialize tools
     // Legacy overlay (kept for compatibility)
@@ -166,8 +172,16 @@ class App {
     this.defaultConfirmMessage = 'Loading a new image will clear your current work. This cannot be undone.';
 
     // Setup confirmation modal buttons
-    this.confirmOkBtn.addEventListener('click', () => this.executeConfirm());
-    this.confirmCancelBtn.addEventListener('click', () => this.cancelConfirm());
+    if (this.confirmOkBtn) {
+      this.confirmOkBtn.addEventListener('click', () => this.executeConfirm());
+    } else {
+      console.warn('confirmOkBtn element not found');
+    }
+    if (this.confirmCancelBtn) {
+      this.confirmCancelBtn.addEventListener('click', () => this.cancelConfirm());
+    } else {
+      console.warn('confirmCancelBtn element not found');
+    }
 
     // Setup ratio slider
     if (this.ratioSlider) {
@@ -191,23 +205,47 @@ class App {
     this.updateUI = this.updateUI.bind(this);
 
     // Setup approve button
-    this.approveBtn.addEventListener('click', () => this.executeApprove());
+    if (this.approveBtn) {
+      this.approveBtn.addEventListener('click', () => this.executeApprove());
+    } else {
+      console.warn('approveBtn element not found');
+    }
 
     // Setup skip button (for perspective step or canceling pending actions)
-    this.skipBtn.addEventListener('click', () => this.executeCancel());
+    if (this.skipBtn) {
+      this.skipBtn.addEventListener('click', () => this.executeCancel());
+    } else {
+      console.warn('skipBtn element not found');
+    }
 
     // Setup camera reset button
     const cameraResetBtn = document.getElementById('btn-camera-reset');
-    cameraResetBtn.addEventListener('click', () => this.scene.resetCamera());
+    if (cameraResetBtn) {
+      cameraResetBtn.addEventListener('click', () => this.scene.resetCamera());
+    } else {
+      console.warn('btn-camera-reset element not found');
+    }
 
     // Setup history button (toggle recent images panel)
-    this.historyBtn.addEventListener('click', () => this.toggleRecentPanel());
+    if (this.historyBtn) {
+      this.historyBtn.addEventListener('click', () => this.toggleRecentPanel());
+    } else {
+      console.warn('historyBtn element not found');
+    }
 
     // Setup grid toggle button
-    this.gridBtn.addEventListener('click', () => this.toggleGridVisibility());
+    if (this.gridBtn) {
+      this.gridBtn.addEventListener('click', () => this.toggleGridVisibility());
+    } else {
+      console.warn('gridBtn element not found');
+    }
 
     // Setup snap button
-    this.snapBtn.addEventListener('click', () => this.toggleGridSnap());
+    if (this.snapBtn) {
+      this.snapBtn.addEventListener('click', () => this.toggleGridSnap());
+    } else {
+      console.warn('snapBtn element not found');
+    }
 
     // Setup ESC key to skip perspective
     document.addEventListener('keydown', (e) => {
@@ -235,24 +273,34 @@ class App {
 
     // Global wheel event forwarding - allows zooming in all modes
     // Forward wheel events from overlay canvas to 3D canvas
-    this.overlayCanvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const wheelEvent = new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        deltaX: e.deltaX,
-        deltaY: e.deltaY,
-        deltaZ: e.deltaZ,
-        deltaMode: e.deltaMode
-      });
-      this.canvas.dispatchEvent(wheelEvent);
-    }, { passive: false });
+    if (this.overlayCanvas) {
+      this.overlayCanvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const wheelEvent = new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          deltaX: e.deltaX,
+          deltaY: e.deltaY,
+          deltaZ: e.deltaZ,
+          deltaMode: e.deltaMode
+        });
+        if (this.canvas) this.canvas.dispatchEvent(wheelEvent);
+      }, { passive: false });
+    } else {
+      console.warn('overlay canvas not found; wheel forwarding disabled');
+    }
 
     // Initial UI update
     this.updateUI();
     this.renderRecentImages();
+    // Record initial state for history (enables undo back to start)
+    try {
+      this.history.pushState(this.getSerializableState(), 'Initial state');
+    } catch (e) {
+      console.warn('Failed to push initial history state:', e.message);
+    }
 
     console.log('ImageModel initialized');
   }
@@ -369,7 +417,7 @@ class App {
    */
   async addToRecentImages(dataUrl, name) {
     // Generate unique ID
-    const id = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
     // Create thumbnail (resize to 100x100)
     const img = new Image();
@@ -671,36 +719,8 @@ class App {
     if (!this.imagePlane || !this.imagePlane.mesh || !this.currentImageElement) {
       return;
     }
-
-    // Create texture from original image
-    const originalTexture = new THREE.CanvasTexture(
-      this.createCanvasFromImage(this.currentImageElement)
-    );
-    originalTexture.colorSpace = THREE.SRGBColorSpace;
-
-    // Calculate original dimensions
-    const maxSize = 2;
-    const aspect = this.currentImageElement.width / this.currentImageElement.height;
-    let width, height;
-
-    if (aspect > 1) {
-      width = maxSize;
-      height = maxSize / aspect;
-    } else {
-      height = maxSize;
-      width = maxSize * aspect;
-    }
-
-    // Restore original geometry
-    this.imagePlane.mesh.geometry.dispose();
-    this.imagePlane.mesh.geometry = new THREE.PlaneGeometry(width, height);
-
-    // Restore original texture
-    if (this.imagePlane.mesh.material.map) {
-      this.imagePlane.mesh.material.map.dispose();
-    }
-    this.imagePlane.mesh.material.map = originalTexture;
-    this.imagePlane.mesh.material.needsUpdate = true;
+    const canvas = this.createCanvasFromImage(this.currentImageElement);
+    applyTextureToMesh(this.imagePlane.mesh, canvas);
   }
 
   /**
@@ -750,37 +770,11 @@ class App {
       );
 
       // Update the image plane texture with the preview
-      if (this.imagePlane && this.imagePlane.mesh) {
-        const previewTexture = new THREE.CanvasTexture(result.canvas);
-        previewTexture.colorSpace = THREE.SRGBColorSpace;
-
-        // Update geometry to match new aspect ratio
-        const maxSize = 2;
-        const aspect = result.width / result.height;
-        let width, height;
-
-        if (aspect > 1) {
-          width = maxSize;
-          height = maxSize / aspect;
-        } else {
-          height = maxSize;
-          width = maxSize * aspect;
+        if (this.imagePlane && this.imagePlane.mesh) {
+          applyTextureToMesh(this.imagePlane.mesh, result.canvas);
+          // Store for final application
+          this.previewCanvas = result.canvas;
         }
-
-        // Update plane geometry
-        this.imagePlane.mesh.geometry.dispose();
-        this.imagePlane.mesh.geometry = new THREE.PlaneGeometry(width, height);
-
-        // Update texture
-        if (this.imagePlane.mesh.material.map) {
-          this.imagePlane.mesh.material.map.dispose();
-        }
-        this.imagePlane.mesh.material.map = previewTexture;
-        this.imagePlane.mesh.material.needsUpdate = true;
-
-        // Store for final application
-        this.previewCanvas = result.canvas;
-      }
     } catch (error) {
       console.error('Preview update failed:', error);
     }
@@ -814,8 +808,7 @@ class App {
       }
 
       // Create texture from original image
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
+      const texture = createTextureFromCanvas(canvas);
 
       // Calculate plane dimensions
       const maxSize = 2;
@@ -841,8 +834,7 @@ class App {
       // Clean up preview mesh if any
       if (this.previewMesh) {
         this.scene.remove(this.previewMesh);
-        this.previewMesh.geometry.dispose();
-        this.previewMesh.material.dispose();
+        disposeMesh(this.previewMesh);
         this.previewMesh = null;
       }
 
@@ -1093,8 +1085,7 @@ class App {
     // Remove preview mesh if it exists
     if (this.previewMesh) {
       this.scene.remove(this.previewMesh);
-      this.previewMesh.geometry.dispose();
-      this.previewMesh.material.dispose();
+      disposeMesh(this.previewMesh);
       this.previewMesh = null;
     }
 
@@ -1207,8 +1198,7 @@ class App {
       }
 
       // Create texture from corrected image
-      const correctedTexture = new THREE.CanvasTexture(resultCanvas);
-      correctedTexture.colorSpace = THREE.SRGBColorSpace;
+      const correctedTexture = createTextureFromCanvas(resultCanvas);
 
       // Calculate plane dimensions
       const maxSize = 2;
@@ -1285,34 +1275,7 @@ class App {
    */
   updatePreviewPlane(canvas) {
     if (!this.imagePlane || !this.imagePlane.mesh) return;
-
-    // Create texture from canvas
-    const previewTexture = new THREE.CanvasTexture(canvas);
-    previewTexture.colorSpace = THREE.SRGBColorSpace;
-
-    // Calculate new dimensions
-    const maxSize = 2;
-    const aspect = canvas.width / canvas.height;
-    let width, height;
-
-    if (aspect > 1) {
-      width = maxSize;
-      height = maxSize / aspect;
-    } else {
-      height = maxSize;
-      width = maxSize * aspect;
-    }
-
-    // Update geometry
-    this.imagePlane.mesh.geometry.dispose();
-    this.imagePlane.mesh.geometry = new THREE.PlaneGeometry(width, height);
-
-    // Update texture
-    if (this.imagePlane.mesh.material.map) {
-      this.imagePlane.mesh.material.map.dispose();
-    }
-    this.imagePlane.mesh.material.map = previewTexture;
-    this.imagePlane.mesh.material.needsUpdate = true;
+    applyTextureToMesh(this.imagePlane.mesh, canvas);
   }
 
   /**
@@ -1362,41 +1325,16 @@ class App {
     // Remove old preview mesh
     if (this.previewMesh) {
       this.scene.remove(this.previewMesh);
-      this.previewMesh.geometry.dispose();
-      this.previewMesh.material.dispose();
+      disposeMesh(this.previewMesh);
       this.previewMesh = null;
     }
 
     // Remove original image plane for preview
-    if (this.imagePlane && this.imagePlane.mesh.visible) {
+    if (this.imagePlane && this.imagePlane.mesh && this.imagePlane.mesh.visible) {
       this.imagePlane.mesh.visible = false;
     }
 
-    // Create texture from canvas
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-
-    // Calculate dimensions
-    const maxSize = 2;
-    const aspect = canvas.width / canvas.height;
-    let width, height;
-
-    if (aspect > 1) {
-      width = maxSize;
-      height = maxSize / aspect;
-    } else {
-      height = maxSize;
-      width = maxSize * aspect;
-    }
-
-    // Create preview mesh
-    const geometry = new THREE.PlaneGeometry(width, height);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      side: THREE.DoubleSide
-    });
-
-    this.previewMesh = new THREE.Mesh(geometry, material);
+    this.previewMesh = createPreviewMeshFromCanvas(canvas);
     this.previewMesh.name = 'alignmentPreview';
     this.scene.add(this.previewMesh);
   }
@@ -1408,8 +1346,7 @@ class App {
     // Remove preview mesh
     if (this.previewMesh) {
       this.scene.remove(this.previewMesh);
-      this.previewMesh.geometry.dispose();
-      this.previewMesh.material.dispose();
+      disposeMesh(this.previewMesh);
       this.previewMesh = null;
     }
 
@@ -1423,22 +1360,9 @@ class App {
     // Store corrected canvas for export
     this.correctedCanvas = canvas;
 
-    // Create texture from corrected image
-    const correctedTexture = new THREE.CanvasTexture(canvas);
-    correctedTexture.colorSpace = THREE.SRGBColorSpace;
-
-    // Calculate plane dimensions
-    const maxSize = 2;
-    const aspect = canvas.width / canvas.height;
-    let width, height;
-
-    if (aspect > 1) {
-      width = maxSize;
-      height = maxSize / aspect;
-    } else {
-      height = maxSize;
-      width = maxSize * aspect;
-    }
+    // Create texture from corrected image and compute plane size
+    const correctedTexture = createTextureFromCanvas(canvas);
+    const { width, height } = computePlaneSize(canvas.width, canvas.height);
 
     // Create editable mesh
     this.editableMesh = new EditableMesh();
@@ -1477,10 +1401,6 @@ class App {
    */
   onExtrudeComplete(faces, distance) {
     console.log('Extrude:', faces.map(f => f.id).join(', '), 'distance:', distance);
-
-    // Save state for undo
-    this.history.pushState(this.getSerializableState(), 'Extrude faces');
-
     // Use extrudeFaces for multi-face extrusion (handles shared edges correctly)
     const result = extrudeFaces(faces, distance, this.editableMesh.nextFaceId);
 
@@ -1517,6 +1437,8 @@ class App {
     this.extrudeTool.setSelectedFaces(result.extrudedFaces);
 
     this.updateUI();
+    // Save state for undo (record the state after extrusion)
+    this.history.pushState(this.getSerializableState(), 'Extrude faces');
 
     console.log('Extrusion complete');
   }
@@ -1530,8 +1452,7 @@ class App {
   onInsetComplete(faces, thickness, individualMode = false) {
     console.log('Inset:', faces.map(f => f.id).join(', '), 'thickness:', thickness, 'individual:', individualMode);
 
-    // Save state for undo
-    this.history.pushState(this.getSerializableState(), 'Inset faces');
+    // (Save state after inset below) 
 
     const newInsetFaces = [];
 
@@ -1588,6 +1509,9 @@ class App {
 
     this.updateUI();
 
+    // Save state for undo (record the state after inset)
+    this.history.pushState(this.getSerializableState(), 'Inset faces');
+
     console.log('Inset complete');
   }
 
@@ -1603,7 +1527,11 @@ class App {
    */
   setGridSnap(enabled) {
     this.gridSnap = enabled;
-    this.scene.setGridVisible(enabled);
+    if (typeof this.scene.setGridSnap === 'function') {
+      this.scene.setGridSnap(enabled);
+    } else {
+      console.warn('SceneManager.setGridSnap not available; grid snap set locally only.');
+    }
   }
 
   /**
@@ -1646,11 +1574,27 @@ class App {
       // If no lines to undo, fall through to history undo (which will restore original image)
     }
 
-    const state = this.getSerializableState();
-    const previousState = this.history.undo(state);
+    const previousState = this.history.undo();
 
     if (previousState) {
       this.restoreState(previousState);
+      // Ensure tools do not hold stale references to faces from the undone state
+      this.selectedFaces = [];
+      if (this.selectTool) {
+        this.selectTool.setMesh(this.editableMesh);
+        this.selectTool.clearSelection();
+        this.selectTool.clearHover();
+      }
+      if (this.extrudeTool) {
+        this.extrudeTool.setMesh(this.editableMesh);
+        this.extrudeTool.setSelectedFaces([]);
+        if (typeof this.extrudeTool.removePreview === 'function') this.extrudeTool.removePreview();
+      }
+      if (this.insetTool) {
+        this.insetTool.setMesh(this.editableMesh);
+        this.insetTool.setSelectedFaces([]);
+        if (typeof this.insetTool.removePreview === 'function') this.insetTool.removePreview();
+      }
     }
   }
 
@@ -1658,11 +1602,27 @@ class App {
    * Redo
    */
   redo() {
-    const state = this.getSerializableState();
-    const nextState = this.history.redo(state);
+    const nextState = this.history.redo();
 
     if (nextState) {
       this.restoreState(nextState);
+      // Clear tool selections/previews to avoid stale references
+      this.selectedFaces = [];
+      if (this.selectTool) {
+        this.selectTool.setMesh(this.editableMesh);
+        this.selectTool.clearSelection();
+        this.selectTool.clearHover();
+      }
+      if (this.extrudeTool) {
+        this.extrudeTool.setMesh(this.editableMesh);
+        this.extrudeTool.setSelectedFaces([]);
+        if (typeof this.extrudeTool.removePreview === 'function') this.extrudeTool.removePreview();
+      }
+      if (this.insetTool) {
+        this.insetTool.setMesh(this.editableMesh);
+        this.insetTool.setSelectedFaces([]);
+        if (typeof this.insetTool.removePreview === 'function') this.insetTool.removePreview();
+      }
     }
   }
 
@@ -1684,14 +1644,58 @@ class App {
     this.hasImage = state.hasImage;
     this.hasMesh = state.hasMesh;
 
-    if (state.mesh && this.editableMesh) {
+    if (state.mesh) {
+      if (!this.editableMesh) {
+        this.editableMesh = new EditableMesh();
+        // If there's a mesh texture available from correctedCanvas, try to re-create
+        if (this.correctedCanvas) {
+          const tex = createTextureFromCanvas(this.correctedCanvas);
+          const { width, height } = computePlaneSize(this.correctedCanvas.width, this.correctedCanvas.height);
+          this.editableMesh.createFromDimensions(width, height, tex);
+          this.scene.add(this.editableMesh.mesh);
+          this.scene.add(this.editableMesh.getWireframe());
+        }
+      }
+
+      // Deserialize faces/state
       this.editableMesh.deserialize(state.mesh);
+
+      // Ensure scene has the mesh and wireframe
+      if (this.editableMesh.mesh && !this.scene.scene.getObjectById(this.editableMesh.mesh.id)) {
+        this.scene.add(this.editableMesh.mesh);
+      }
+      if (this.editableMesh.getWireframe() && !this.scene.scene.getObjectById(this.editableMesh.getWireframe().id)) {
+        this.scene.add(this.editableMesh.getWireframe());
+      }
     }
 
-    // Clear selection on restore
+    // Clear selection on restore and reset tools to use the restored mesh
     this.selectedFaces = [];
     if (this.selectTool) {
+      this.selectTool.setMesh(this.editableMesh);
       this.selectTool.clearSelection();
+    }
+
+    if (this.extrudeTool) {
+      this.extrudeTool.setMesh(this.editableMesh);
+      this.extrudeTool.setSelectedFaces([]);
+      if (typeof this.extrudeTool.removePreview === 'function') {
+        this.extrudeTool.removePreview();
+      }
+    }
+
+    if (this.insetTool) {
+      this.insetTool.setMesh(this.editableMesh);
+      this.insetTool.setSelectedFaces([]);
+      if (typeof this.insetTool.removePreview === 'function') {
+        this.insetTool.removePreview();
+      }
+    }
+
+    // Enhanced validation: ensure selectedFaces references map to existing editableMesh.faces
+    if (this.selectedFaces && this.editableMesh && this.editableMesh.faces) {
+      const existingFaceIds = new Set(this.editableMesh.faces.map(face => face.id));
+      this.selectedFaces = this.selectedFaces.filter(face => existingFaceIds.has(face.id));
     }
 
     this.updateUI();

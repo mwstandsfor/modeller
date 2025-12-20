@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createTextureFromImage, computePlaneSize, disposeMesh } from '../utils/threeUtils.js';
 
 /**
  * Create a textured plane from an image
@@ -30,23 +31,11 @@ export class ImagePlane {
           this.originalHeight = img.height;
           this.imageData = e.target.result;
 
-          // Create texture
-          this.texture = new THREE.Texture(img);
-          this.texture.needsUpdate = true;
-          this.texture.colorSpace = THREE.SRGBColorSpace;
+          // Create texture from image
+          this.texture = createTextureFromImage(img);
 
           // Calculate plane size (normalize to max 2 units)
-          const maxSize = 2;
-          const aspect = img.width / img.height;
-          let width, height;
-
-          if (aspect > 1) {
-            width = maxSize;
-            height = maxSize / aspect;
-          } else {
-            height = maxSize;
-            width = maxSize * aspect;
-          }
+          const { width, height } = computePlaneSize(img.width, img.height);
 
           // Create geometry
           const geometry = new THREE.PlaneGeometry(width, height, 1, 1);
@@ -123,11 +112,10 @@ export class ImagePlane {
    */
   dispose() {
     if (this.mesh) {
-      this.mesh.geometry.dispose();
-      this.mesh.material.dispose();
+      try { disposeMesh(this.mesh); } catch (e) {}
     }
     if (this.texture) {
-      this.texture.dispose();
+      try { this.texture.dispose(); } catch (e) {}
     }
     this.mesh = null;
     this.texture = null;

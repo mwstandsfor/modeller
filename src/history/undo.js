@@ -17,11 +17,22 @@ export class HistoryManager {
    */
   pushState(state, description = '') {
     // Deep clone the state
+    const serialized = JSON.stringify(state);
     const snapshot = {
-      state: JSON.parse(JSON.stringify(state)),
+      state: JSON.parse(serialized),
       description,
       timestamp: Date.now()
     };
+
+    // Prevent pushing duplicate consecutive states which break undo/redo sequencing
+    const top = this.undoStack[this.undoStack.length - 1];
+    if (top && JSON.stringify(top.state) === serialized) {
+      // Update description/timestamp for the existing top entry instead of duplicating
+      top.description = description || top.description;
+      top.timestamp = snapshot.timestamp;
+      this.notifyListeners();
+      return;
+    }
 
     this.undoStack.push(snapshot);
 
@@ -46,7 +57,6 @@ export class HistoryManager {
     if (this.undoStack.length < 2) return null;
 
     // Pop the current state from undo stack and save to redo stack
-    // (The top of undoStack is the state after the last action)
     const currentSnapshot = this.undoStack.pop();
     this.redoStack.push(currentSnapshot);
 

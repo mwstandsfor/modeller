@@ -86,8 +86,8 @@ npm run preview  # Preview the production build
 | `P` | Perspective tool |
 | `Space` / `Enter` | Confirm action |
 | `Escape` | Cancel / Skip |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Shift+Z` | Redo |
+| `Z` | Undo |
+| `X` | Redo |
 | `G` | Toggle grid |
 | `R` | Reset camera |
 | Double-tap `C` | Toggle cut mode (edge/face) |

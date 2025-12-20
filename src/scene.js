@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createTextureFromCanvas } from './utils/threeUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /**
@@ -233,7 +234,7 @@ export class SceneManager {
     ctx.textBaseline = 'middle';
     ctx.fillText(text, 32, 34);
 
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = createTextureFromCanvas(canvas);
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true
