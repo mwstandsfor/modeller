@@ -117,7 +117,6 @@ class App {
     this.hasImage = false;
     this.hasMesh = false;
     this.selectedFaces = [];
-    this.gridSnap = false;
 
     // Image/texture data
     this.currentImageData = null;
@@ -145,7 +144,6 @@ class App {
     this.recentImagesGrid = document.getElementById('recent-images');
     this.historyBtn = document.getElementById('btn-history');
     this.gridBtn = document.getElementById('btn-grid');
-    this.snapBtn = document.getElementById('btn-snap');
     this.xrayBtn = document.getElementById('btn-xray');
     this.distanceIndicator = document.getElementById('distance-indicator');
     this.distanceLabel = document.getElementById('distance-label');
@@ -207,9 +205,6 @@ class App {
 
     // Setup grid toggle button
     this.gridBtn.addEventListener('click', () => this.toggleGridVisibility());
-
-    // Setup snap button
-    this.snapBtn.addEventListener('click', () => this.toggleGridSnap());
 
     // Initialize render settings
     this.renderSettings = new RenderSettings();
@@ -573,14 +568,6 @@ class App {
     this.gridVisible = !this.gridVisible;
     this.scene.setGridVisible(this.gridVisible);
     this.gridBtn.classList.toggle('active', this.gridVisible);
-  }
-
-  /**
-   * Toggle grid snap
-   */
-  toggleGridSnap() {
-    this.gridSnap = !this.gridSnap;
-    this.snapBtn.classList.toggle('active', this.gridSnap);
   }
 
   /**
@@ -1628,14 +1615,6 @@ class App {
    */
   setMode(mode) {
     this.modeManager.setMode(mode);
-  }
-
-  /**
-   * Set grid snap
-   */
-  setGridSnap(enabled) {
-    this.gridSnap = enabled;
-    this.scene.setGridVisible(enabled);
   }
 
   /**
