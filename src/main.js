@@ -146,7 +146,6 @@ class App {
     this.historyBtn = document.getElementById('btn-history');
     this.gridBtn = document.getElementById('btn-grid');
     this.snapBtn = document.getElementById('btn-snap');
-    this.cavityBtn = document.getElementById('btn-cavity');
     this.xrayBtn = document.getElementById('btn-xray');
     this.distanceIndicator = document.getElementById('distance-indicator');
     this.distanceLabel = document.getElementById('distance-label');
@@ -214,9 +213,6 @@ class App {
 
     // Initialize render settings
     this.renderSettings = new RenderSettings();
-
-    // Setup cavity toggle button
-    this.cavityBtn.addEventListener('click', () => this.toggleCavity());
 
     // Setup x-ray toggle button
     this.xrayBtn.addEventListener('click', () => this.toggleXray());
@@ -585,21 +581,6 @@ class App {
   toggleGridSnap() {
     this.gridSnap = !this.gridSnap;
     this.snapBtn.classList.toggle('active', this.gridSnap);
-  }
-
-  /**
-   * Toggle cavity rendering mode
-   * Enhances visibility of edges and creases
-   */
-  toggleCavity() {
-    const enabled = this.renderSettings.toggleCavity();
-    this.cavityBtn.classList.toggle('active', enabled);
-
-    // Re-register current mesh to apply new settings
-    if (this.editableMesh && this.editableMesh.mesh) {
-      this.renderSettings.unregisterMesh(this.editableMesh.mesh);
-      this.renderSettings.registerMesh(this.editableMesh.mesh);
-    }
   }
 
   /**

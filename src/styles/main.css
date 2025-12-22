@@ -232,17 +232,32 @@ body {
 }
 
 /* ========================================
+   Render Bar (Top Right - Horizontal)
+   ======================================== */
+
+#render-bar {
+  position: absolute;
+  top: var(--frame-gap);
+  right: calc(var(--frame-gap) + 60px);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background: var(--bg-container);
+  border-radius: var(--radius-md);
+  z-index: 100;
+}
+
+/* ========================================
    Right Bar (Top Right)
    ======================================== */
 
 #right-bar {
   position: absolute;
-  top: var(--frame-gap);;
-  right: var(--frame-gap);;
+  top: var(--frame-gap);
+  right: var(--frame-gap);
   display: flex;
   flex-direction: column;
   align-items: center;
-  /*padding: var(--container-padding); */
   background: var(--bg-container);
   border-radius: var(--radius-md);
   z-index: 100;
@@ -799,6 +814,7 @@ Responsive adjustments
 #app.split-mode #action-bar,
 #app.split-mode #bottom-bar,
 #app.split-mode #right-bar,
+#app.split-mode #render-bar,
 #app.split-mode #ratio-control {
   display: none;
 }
