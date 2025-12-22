@@ -19,10 +19,10 @@ export const CAVITY_SETTINGS = {
 
   // Valley (concave edges) - darker color
   valleyColor: new THREE.Color(0.0, 0.0, 0.0),  // Black shadow
-  valleyStrength: 0.5,  // How much to darken valleys (0-1)
+  valleyStrength: 0.8,  // How much to darken valleys (0-1) - higher = more visible edges
 
   // Overall intensity
-  intensity: 1.0,
+  intensity: 1.5,  // Multiplier for edge detection sensitivity
 };
 
 // X-Ray Settings
@@ -225,8 +225,25 @@ export class RenderSettings {
     const original = this.originalMaterials.get(mesh);
     if (!original) return;
 
-    // Start with a fresh clone of original
-    let material = original.clone();
+    let material;
+
+    // Apply Cavity settings - need to convert to a material with normals
+    if (this.cavityEnabled) {
+      // Convert MeshBasicMaterial to MeshLambertMaterial for cavity shading
+      if (original.isMeshBasicMaterial) {
+        material = new THREE.MeshLambertMaterial({
+          map: original.map,
+          side: original.side,
+          color: original.color,
+        });
+      } else {
+        material = original.clone();
+      }
+      material = this.applyCavityEffect(material);
+    } else {
+      // Start with a fresh clone of original
+      material = original.clone();
+    }
 
     // Apply X-Ray settings
     if (this.xrayEnabled) {
@@ -234,11 +251,6 @@ export class RenderSettings {
       material.opacity = XRAY_SETTINGS.opacity;
       material.depthWrite = XRAY_SETTINGS.depthWrite;
       material.side = XRAY_SETTINGS.showBackfaces ? THREE.DoubleSide : THREE.FrontSide;
-    }
-
-    // Apply Cavity settings
-    if (this.cavityEnabled) {
-      material = this.applyCavityEffect(material);
     }
 
     material.needsUpdate = true;
@@ -251,51 +263,50 @@ export class RenderSettings {
    * @returns {THREE.Material}
    */
   applyCavityEffect(material) {
-    // For MeshBasicMaterial or materials without normals, skip cavity
-    if (material.isMeshBasicMaterial) {
-      return material;
-    }
+    // For MeshBasicMaterial, we already converted to MeshLambertMaterial
+    // The lighting itself will provide depth cues
 
-    // Use onBeforeCompile to inject cavity shader code
+    // Use onBeforeCompile to inject cavity shader code for enhanced edge detection
     material.onBeforeCompile = (shader) => {
       shader.uniforms.cavityStrength = { value: CAVITY_SETTINGS.intensity };
       shader.uniforms.valleyStrength = { value: CAVITY_SETTINGS.valleyStrength };
       shader.uniforms.ridgeStrength = { value: CAVITY_SETTINGS.ridgeStrength };
 
-      // Add uniforms declaration
+      // Add uniforms declaration after #include <common> (more reliable than before void main)
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <common>',
-        `
-        #include <common>
+        `#include <common>
         uniform float cavityStrength;
         uniform float valleyStrength;
         uniform float ridgeStrength;
         `
       );
 
-      // Add cavity calculation before output
+      // Add cavity calculation after output_fragment
+      // Use screen-space depth derivatives to detect edges (universal approach)
       shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <dithering_fragment>',
-        `
-        // Cavity effect - darken based on normal variation
-        vec3 fdx = dFdx(vNormal);
-        vec3 fdy = dFdy(vNormal);
-        float cavity = (length(fdx) + length(fdy)) * 8.0;
-        cavity = clamp(cavity, 0.0, 1.0);
+        '#include <output_fragment>',
+        `#include <output_fragment>
 
-        // Darken valleys (high curvature areas)
-        gl_FragColor.rgb *= 1.0 - (cavity * valleyStrength * cavityStrength);
+        // Cavity effect - detect edges using depth discontinuities
+        float depth = gl_FragCoord.z;
+        float depthDx = dFdx(depth);
+        float depthDy = dFdy(depth);
+        float edgeStrength = abs(depthDx) + abs(depthDy);
 
-        // Lighten ridges slightly
-        float facing = max(0.0, dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)));
-        gl_FragColor.rgb += facing * ridgeStrength * cavityStrength * 0.05;
+        // Scale and clamp the edge detection
+        edgeStrength = clamp(edgeStrength * 500.0 * cavityStrength, 0.0, 1.0);
 
-        #include <dithering_fragment>
+        // Darken edges/valleys for cavity effect
+        gl_FragColor.rgb *= 1.0 - (edgeStrength * valleyStrength);
         `
       );
 
       material.userData.shader = shader;
     };
+
+    // Force shader recompilation
+    material.customProgramCacheKey = () => 'cavity_' + CAVITY_SETTINGS.intensity;
 
     return material;
   }
