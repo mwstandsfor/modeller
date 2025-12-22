@@ -15,6 +15,7 @@ import { SelectTool } from './tools/select.js';
 import { ExtrudeTool, extrudeFace, extrudeFaces } from './geometry/extrude.js';
 import { InsetTool, insetFace, insetFaces } from './geometry/inset.js';
 import { downloadOBJ } from './export/obj.js';
+import { RenderSettings } from './render/settings.js';
 
 /**
  * Main Application class
@@ -145,6 +146,8 @@ class App {
     this.historyBtn = document.getElementById('btn-history');
     this.gridBtn = document.getElementById('btn-grid');
     this.snapBtn = document.getElementById('btn-snap');
+    this.cavityBtn = document.getElementById('btn-cavity');
+    this.xrayBtn = document.getElementById('btn-xray');
     this.distanceIndicator = document.getElementById('distance-indicator');
     this.distanceLabel = document.getElementById('distance-label');
     this.distanceValue = document.getElementById('distance-value');
@@ -208,6 +211,15 @@ class App {
 
     // Setup snap button
     this.snapBtn.addEventListener('click', () => this.toggleGridSnap());
+
+    // Initialize render settings
+    this.renderSettings = new RenderSettings();
+
+    // Setup cavity toggle button
+    this.cavityBtn.addEventListener('click', () => this.toggleCavity());
+
+    // Setup x-ray toggle button
+    this.xrayBtn.addEventListener('click', () => this.toggleXray());
 
     // Setup ESC key to skip perspective
     document.addEventListener('keydown', (e) => {
@@ -576,6 +588,36 @@ class App {
   }
 
   /**
+   * Toggle cavity rendering mode
+   * Enhances visibility of edges and creases
+   */
+  toggleCavity() {
+    const enabled = this.renderSettings.toggleCavity();
+    this.cavityBtn.classList.toggle('active', enabled);
+
+    // Re-register current mesh to apply new settings
+    if (this.editableMesh && this.editableMesh.mesh) {
+      this.renderSettings.unregisterMesh(this.editableMesh.mesh);
+      this.renderSettings.registerMesh(this.editableMesh.mesh);
+    }
+  }
+
+  /**
+   * Toggle x-ray rendering mode
+   * Makes mesh semi-transparent to see through
+   */
+  toggleXray() {
+    const enabled = this.renderSettings.toggleXray();
+    this.xrayBtn.classList.toggle('active', enabled);
+
+    // Re-register current mesh to apply new settings
+    if (this.editableMesh && this.editableMesh.mesh) {
+      this.renderSettings.unregisterMesh(this.editableMesh.mesh);
+      this.renderSettings.registerMesh(this.editableMesh.mesh);
+    }
+  }
+
+  /**
    * Show distance indicator with label and value
    * @param {string} label - Operation name (e.g., "Extrude", "Inset")
    * @param {number} value - Distance value in scene units
@@ -837,6 +879,9 @@ class App {
       // Add mesh and wireframe to scene
       this.scene.add(this.editableMesh.mesh);
       this.scene.add(this.editableMesh.getWireframe());
+
+      // Register mesh with render settings
+      this.renderSettings.registerMesh(this.editableMesh.mesh);
 
       // Clean up preview mesh if any
       if (this.previewMesh) {
@@ -1234,6 +1279,9 @@ class App {
       this.scene.add(this.editableMesh.mesh);
       this.scene.add(this.editableMesh.getWireframe());
 
+      // Register mesh with render settings
+      this.renderSettings.registerMesh(this.editableMesh.mesh);
+
       this.hasMesh = true;
       this.setMode(Modes.SELECT);
 
@@ -1447,6 +1495,9 @@ class App {
     // Add mesh and wireframe to scene
     this.scene.add(this.editableMesh.mesh);
     this.scene.add(this.editableMesh.getWireframe());
+
+    // Register mesh with render settings
+    this.renderSettings.registerMesh(this.editableMesh.mesh);
   }
 
   /**
