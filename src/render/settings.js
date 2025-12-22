@@ -283,19 +283,28 @@ export class RenderSettings {
       );
 
       // Add cavity calculation after output_fragment
-      // Use screen-space depth derivatives to detect edges (universal approach)
+      // Use SECOND derivatives of depth to detect edges (where depth gradient changes)
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <output_fragment>',
         `#include <output_fragment>
 
-        // Cavity effect - detect edges using depth discontinuities
+        // Cavity effect - detect edges using second derivatives of depth
+        // First derivative = depth gradient (constant on flat surfaces)
+        // Second derivative = change in gradient (non-zero only at edges)
         float depth = gl_FragCoord.z;
         float depthDx = dFdx(depth);
         float depthDy = dFdy(depth);
-        float edgeStrength = abs(depthDx) + abs(depthDy);
 
-        // Scale and clamp the edge detection
-        edgeStrength = clamp(edgeStrength * 500.0 * cavityStrength, 0.0, 1.0);
+        // Second derivatives - these are zero on flat surfaces, non-zero at edges
+        float depthDxx = dFdx(depthDx);
+        float depthDyy = dFdy(depthDy);
+        float depthDxy = dFdx(depthDy);
+
+        // Combine second derivatives for edge detection (Laplacian-like)
+        float edgeStrength = abs(depthDxx) + abs(depthDyy) + abs(depthDxy) * 0.5;
+
+        // Scale up significantly since second derivatives are very small
+        edgeStrength = clamp(edgeStrength * 50000.0 * cavityStrength, 0.0, 1.0);
 
         // Darken edges/valleys for cavity effect
         gl_FragColor.rgb *= 1.0 - (edgeStrength * valleyStrength);
