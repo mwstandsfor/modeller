@@ -19,7 +19,8 @@ export const ModeDescriptions = {
   [Modes.CUT]: 'Click on an edge, then another edge to cut the face',
   [Modes.SELECT]: 'Click on a face to select it',
   [Modes.EXTRUDE]: 'Drag selected face to extrude or intrude',
-  [Modes.INSET]: 'Drag selected face to inset'
+  [Modes.INSET]: 'Drag selected face to inset',
+  [Modes.DELETE]: 'Click on a face to delete it'
 };
 
 /**
