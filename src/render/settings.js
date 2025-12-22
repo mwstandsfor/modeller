@@ -9,20 +9,19 @@ import * as THREE from 'three';
  * ============================================
  */
 
-// Cavity Settings
+// Cavity Settings - uses edge wireframe overlay for reliable edge highlighting
 export const CAVITY_SETTINGS = {
   enabled: false,
 
-  // Ridge (convex edges) - lighter color
-  ridgeColor: new THREE.Color(1.0, 1.0, 1.0),  // White highlight
-  ridgeStrength: 0.4,  // How much to lighten ridges (0-1)
+  // Edge line color (dark to show edges clearly)
+  edgeColor: 0x000000,
 
-  // Valley (concave edges) - darker color
-  valleyColor: new THREE.Color(0.0, 0.0, 0.0),  // Black shadow
-  valleyStrength: 0.8,  // How much to darken valleys (0-1) - higher = more visible edges
+  // Edge line opacity
+  edgeOpacity: 0.3,
 
-  // Overall intensity
-  intensity: 1.5,  // Multiplier for edge detection sensitivity
+  // Threshold angle for edge detection (in degrees)
+  // Lower = more edges shown, higher = only sharp edges
+  thresholdAngle: 30,
 };
 
 // X-Ray Settings
@@ -40,101 +39,6 @@ export const XRAY_SETTINGS = {
 };
 
 /**
- * Cavity shader - enhances edges based on curvature
- * Uses screen-space derivative of normals to detect edges
- */
-export const CavityShader = {
-  uniforms: {
-    tDiffuse: { value: null },
-    tNormal: { value: null },
-    cavityStrength: { value: CAVITY_SETTINGS.intensity },
-    ridgeStrength: { value: CAVITY_SETTINGS.ridgeStrength },
-    valleyStrength: { value: CAVITY_SETTINGS.valleyStrength },
-  },
-
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float cavityStrength;
-    uniform float ridgeStrength;
-    uniform float valleyStrength;
-    varying vec2 vUv;
-
-    void main() {
-      vec4 color = texture2D(tDiffuse, vUv);
-      gl_FragColor = color;
-    }
-  `
-};
-
-/**
- * Create a cavity-enhanced material from an existing material
- * @param {THREE.Material} baseMaterial - The original material
- * @returns {THREE.Material} - Enhanced material with cavity effect
- */
-export function createCavityMaterial(baseMaterial) {
-  if (!baseMaterial) return null;
-
-  // Clone the material to avoid modifying the original
-  const material = baseMaterial.clone();
-
-  // Inject cavity shader code into the material
-  material.onBeforeCompile = (shader) => {
-    // Add uniforms
-    shader.uniforms.cavityStrength = { value: CAVITY_SETTINGS.intensity };
-    shader.uniforms.ridgeStrength = { value: CAVITY_SETTINGS.ridgeStrength };
-    shader.uniforms.valleyStrength = { value: CAVITY_SETTINGS.valleyStrength };
-
-    // Modify fragment shader to add cavity effect
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      `
-      #include <common>
-      uniform float cavityStrength;
-      uniform float ridgeStrength;
-      uniform float valleyStrength;
-      `
-    );
-
-    // Add cavity calculation after lighting
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <dithering_fragment>',
-      `
-      // Cavity effect using screen-space normal derivatives
-      vec3 fdx = dFdx(vNormal);
-      vec3 fdy = dFdy(vNormal);
-      float cavity = length(fdx) + length(fdy);
-      cavity = clamp(cavity * 10.0, 0.0, 1.0);
-
-      // Apply cavity darkening
-      float darken = 1.0 - (cavity * valleyStrength * cavityStrength);
-      gl_FragColor.rgb *= darken;
-
-      // Subtle ridge highlighting based on normal direction
-      float ridge = dot(vNormal, vec3(0.0, 0.0, 1.0));
-      ridge = max(0.0, ridge);
-      gl_FragColor.rgb += ridge * ridgeStrength * cavityStrength * 0.1;
-
-      #include <dithering_fragment>
-      `
-    );
-
-    // Store shader reference for updates
-    material.userData.shader = shader;
-  };
-
-  material.needsUpdate = true;
-  return material;
-}
-
-/**
  * RenderSettings class - manages render mode state and applies to meshes
  */
 export class RenderSettings {
@@ -144,7 +48,9 @@ export class RenderSettings {
 
     // Store original materials for restoration
     this.originalMaterials = new WeakMap();
-    this.cavityMaterials = new WeakMap();
+
+    // Store cavity edge lines for each mesh
+    this.cavityEdges = new WeakMap();
 
     // Reference to managed meshes
     this.meshes = new Set();
@@ -173,6 +79,9 @@ export class RenderSettings {
   unregisterMesh(mesh) {
     if (!mesh) return;
 
+    // Remove cavity edges if present
+    this.removeCavityEdges(mesh);
+
     // Restore original material
     const original = this.originalMaterials.get(mesh);
     if (original) {
@@ -181,7 +90,6 @@ export class RenderSettings {
 
     this.meshes.delete(mesh);
     this.originalMaterials.delete(mesh);
-    this.cavityMaterials.delete(mesh);
   }
 
   /**
@@ -225,24 +133,14 @@ export class RenderSettings {
     const original = this.originalMaterials.get(mesh);
     if (!original) return;
 
-    let material;
+    // Start with a fresh clone of original
+    let material = original.clone();
 
-    // Apply Cavity settings - need to convert to a material with normals
+    // Apply Cavity - add edge wireframe overlay
     if (this.cavityEnabled) {
-      // Convert MeshBasicMaterial to MeshLambertMaterial for cavity shading
-      if (original.isMeshBasicMaterial) {
-        material = new THREE.MeshLambertMaterial({
-          map: original.map,
-          side: original.side,
-          color: original.color,
-        });
-      } else {
-        material = original.clone();
-      }
-      material = this.applyCavityEffect(material);
+      this.addCavityEdges(mesh);
     } else {
-      // Start with a fresh clone of original
-      material = original.clone();
+      this.removeCavityEdges(mesh);
     }
 
     // Apply X-Ray settings
@@ -258,66 +156,51 @@ export class RenderSettings {
   }
 
   /**
-   * Apply cavity effect to material
-   * @param {THREE.Material} material
-   * @returns {THREE.Material}
+   * Add cavity edge lines to a mesh
+   * @param {THREE.Mesh} mesh
    */
-  applyCavityEffect(material) {
-    // For MeshBasicMaterial, we already converted to MeshLambertMaterial
-    // The lighting itself will provide depth cues
+  addCavityEdges(mesh) {
+    // Remove existing edges first
+    this.removeCavityEdges(mesh);
 
-    // Use onBeforeCompile to inject cavity shader code for enhanced edge detection
-    material.onBeforeCompile = (shader) => {
-      shader.uniforms.cavityStrength = { value: CAVITY_SETTINGS.intensity };
-      shader.uniforms.valleyStrength = { value: CAVITY_SETTINGS.valleyStrength };
-      shader.uniforms.ridgeStrength = { value: CAVITY_SETTINGS.ridgeStrength };
+    if (!mesh.geometry) return;
 
-      // Add uniforms declaration after #include <common> (more reliable than before void main)
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        `#include <common>
-        uniform float cavityStrength;
-        uniform float valleyStrength;
-        uniform float ridgeStrength;
-        `
-      );
+    // Create edges geometry - detects edges based on angle threshold
+    const thresholdAngle = CAVITY_SETTINGS.thresholdAngle;
+    const edgesGeometry = new THREE.EdgesGeometry(mesh.geometry, thresholdAngle);
 
-      // Add cavity calculation after output_fragment
-      // Use SECOND derivatives of depth to detect edges (where depth gradient changes)
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <output_fragment>',
-        `#include <output_fragment>
+    // Create line material for edges
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: CAVITY_SETTINGS.edgeColor,
+      transparent: true,
+      opacity: CAVITY_SETTINGS.edgeOpacity,
+      depthTest: true,
+      depthWrite: false,
+    });
 
-        // Cavity effect - detect edges using second derivatives of depth
-        // First derivative = depth gradient (constant on flat surfaces)
-        // Second derivative = change in gradient (non-zero only at edges)
-        float depth = gl_FragCoord.z;
-        float depthDx = dFdx(depth);
-        float depthDy = dFdy(depth);
+    // Create line segments
+    const edgeLines = new THREE.LineSegments(edgesGeometry, edgeMaterial);
+    edgeLines.name = 'cavityEdges';
 
-        // Second derivatives - these are zero on flat surfaces, non-zero at edges
-        float depthDxx = dFdx(depthDx);
-        float depthDyy = dFdy(depthDy);
-        float depthDxy = dFdx(depthDy);
+    // Add as child of mesh so it follows transformations
+    mesh.add(edgeLines);
 
-        // Combine second derivatives for edge detection (Laplacian-like)
-        float edgeStrength = abs(depthDxx) + abs(depthDyy) + abs(depthDxy) * 0.5;
+    // Store reference
+    this.cavityEdges.set(mesh, edgeLines);
+  }
 
-        // Scale up significantly since second derivatives are very small
-        edgeStrength = clamp(edgeStrength * 50000.0 * cavityStrength, 0.0, 1.0);
-
-        // Darken edges/valleys for cavity effect
-        gl_FragColor.rgb *= 1.0 - (edgeStrength * valleyStrength);
-        `
-      );
-
-      material.userData.shader = shader;
-    };
-
-    // Force shader recompilation
-    material.customProgramCacheKey = () => 'cavity_' + CAVITY_SETTINGS.intensity;
-
-    return material;
+  /**
+   * Remove cavity edge lines from a mesh
+   * @param {THREE.Mesh} mesh
+   */
+  removeCavityEdges(mesh) {
+    const edges = this.cavityEdges.get(mesh);
+    if (edges) {
+      mesh.remove(edges);
+      edges.geometry.dispose();
+      edges.material.dispose();
+      this.cavityEdges.delete(mesh);
+    }
   }
 
   /**
@@ -343,24 +226,18 @@ export class RenderSettings {
   }
 
   /**
-   * Get current settings state
+   * Get current cavity state
+   * @returns {boolean}
    */
-  getState() {
-    return {
-      cavityEnabled: this.cavityEnabled,
-      xrayEnabled: this.xrayEnabled,
-      cavitySettings: { ...CAVITY_SETTINGS },
-      xraySettings: { ...XRAY_SETTINGS },
-    };
+  isCavityEnabled() {
+    return this.cavityEnabled;
   }
 
   /**
-   * Cleanup
+   * Get current x-ray state
+   * @returns {boolean}
    */
-  dispose() {
-    for (const mesh of this.meshes) {
-      this.unregisterMesh(mesh);
-    }
-    this.meshes.clear();
+  isXrayEnabled() {
+    return this.xrayEnabled;
   }
 }
