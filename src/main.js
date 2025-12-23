@@ -71,8 +71,9 @@ class App {
 
       this.editableMesh.rebuildMesh();
 
-      // 6. Save state for undo
+      // 6. Save state for undo and auto-save
       this.history.pushState(this.getSerializableState(), 'Cut faces');
+      this.autoSave();
     };
     this.cutOverlay.onReady = () => {
       this.showApproveButton(
@@ -864,6 +865,7 @@ class App {
       this.setMode(Modes.SELECT);
 
       this.history.pushState(this.getSerializableState(), 'Skip perspective');
+      this.autoSave();
       this.scene.resetCamera();
       this.updateUI();
 
@@ -1096,6 +1098,9 @@ class App {
     // Close any open panels
     this.recentPanel.style.display = 'none';
     this.historyBtn.classList.remove('active');
+
+    // Clear auto-save
+    this.storage.clear();
   }
 
   /**
@@ -1254,6 +1259,7 @@ class App {
       this.setMode(Modes.SELECT);
 
       this.history.pushState(this.getSerializableState(), 'Perspective correction');
+      this.autoSave();
       this.scene.resetCamera();
       this.updateUI();
 
@@ -1362,6 +1368,7 @@ class App {
       this.setMode(Modes.SELECT);
 
       this.history.pushState(this.getSerializableState(), 'Perspective correction');
+      this.autoSave();
       this.scene.resetCamera();
       this.updateUI();
 
@@ -1536,6 +1543,7 @@ class App {
     this.extrudeTool.setSelectedFaces(result.extrudedFaces);
 
     this.updateUI();
+    this.autoSave();
 
     console.log('Extrusion complete');
   }
@@ -1606,6 +1614,7 @@ class App {
     this.insetTool.setSelectedFaces(newInsetFaces);
 
     this.updateUI();
+    this.autoSave();
 
     console.log('Inset complete');
   }
@@ -1678,7 +1687,7 @@ class App {
   }
 
   /**
-   * Get serializable state
+   * Get serializable state for saving
    */
   getSerializableState() {
     return {
@@ -1689,7 +1698,25 @@ class App {
   }
 
   /**
-   * Restore state
+   * Get full state including image for auto-save
+   */
+  getFullState() {
+    // Get image data from corrected canvas
+    let imageData = null;
+    if (this.correctedCanvas) {
+      imageData = this.correctedCanvas.toDataURL('image/png');
+    }
+
+    return {
+      hasImage: this.hasImage,
+      hasMesh: this.hasMesh,
+      imageData: imageData,
+      mesh: this.editableMesh ? this.editableMesh.serialize() : null
+    };
+  }
+
+  /**
+   * Restore state (for undo/redo - no image)
    */
   restoreState(state) {
     this.hasImage = state.hasImage;
@@ -1709,27 +1736,109 @@ class App {
   }
 
   /**
-   * Save project
+   * Auto-save project to IndexedDB
    */
-  saveProject() {
-    const state = this.getSerializableState();
-    const success = this.storage.save(state);
-    if (success) console.log('Project saved');
+  async autoSave() {
+    if (!this.hasMesh) return;
+
+    const state = this.getFullState();
+    await this.storage.save(state);
   }
 
   /**
-   * Load project
+   * Auto-load project from IndexedDB on startup
    */
-  loadProject() {
-    const state = this.storage.load();
-    if (state) {
-      this.restoreState(state);
-      console.log('Project loaded');
+  async autoLoad() {
+    const state = await this.storage.load();
+    if (!state || !state.imageData || !state.mesh) return false;
+
+    try {
+      // Load image from data URL
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = state.imageData;
+      });
+
+      // Create canvas from image
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      this.correctedCanvas = canvas;
+
+      // Create texture
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+
+      // Calculate dimensions
+      const maxSize = 2;
+      const aspect = canvas.width / canvas.height;
+      let width, height;
+      if (aspect > 1) {
+        width = maxSize;
+        height = maxSize / aspect;
+      } else {
+        height = maxSize;
+        width = maxSize * aspect;
+      }
+
+      // Create mesh and deserialize state
+      this.editableMesh = new EditableMesh();
+      this.editableMesh.texture = texture;
+      this.editableMesh.deserialize(state.mesh);
+
+      // Update material with texture
+      if (this.editableMesh.mesh) {
+        this.editableMesh.mesh.material.map = texture;
+        this.editableMesh.mesh.material.needsUpdate = true;
+      }
+
+      // Add to scene
+      this.scene.add(this.editableMesh.mesh);
+      this.scene.add(this.editableMesh.getWireframe());
+
+      // Register with render settings
+      this.renderSettings.registerMesh(this.editableMesh.mesh);
+
+      this.hasImage = true;
+      this.hasMesh = true;
+      this.setMode(Modes.SELECT);
+      this.scene.resetCamera();
+      this.updateUI();
+
+      console.log('Project restored from auto-save');
+      return true;
+    } catch (e) {
+      console.error('Failed to restore auto-save:', e);
+      return false;
     }
+  }
+
+  /**
+   * Save project (legacy - now uses auto-save)
+   */
+  saveProject() {
+    this.autoSave();
+  }
+
+  /**
+   * Load project (legacy - now uses auto-load)
+   */
+  async loadProject() {
+    return this.autoLoad();
   }
 }
 
 // Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   window.app = new App();
+
+  // Try to restore from auto-save
+  const restored = await window.app.autoLoad();
+  if (restored) {
+    console.log('Restored previous session');
+  }
 });

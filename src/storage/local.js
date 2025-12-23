@@ -1,73 +1,158 @@
 /**
- * Local storage manager for saving/loading projects
+ * Storage Manager using IndexedDB
+ * Handles auto-saving project state without freezing the UI
  */
+
+const AUTOSAVE_KEY = 'autosave';
+
 export class StorageManager {
-  constructor(storageKey = 'imagemodel_project') {
-    this.storageKey = storageKey;
+  constructor(dbName = 'LazyImage_DB', storeName = 'projects') {
+    this.dbName = dbName;
+    this.storeName = storeName;
+    this.db = null;
+    this.dbReady = this.initDB();
   }
 
   /**
-   * Save project state to local storage
-   * @param {object} state - Project state to save
+   * Initialize the database connection
    */
-  save(state) {
+  async initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+
+      request.onerror = () => {
+        console.error('Failed to open IndexedDB:', request.error);
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
+  }
+
+  /**
+   * Save project state
+   * @param {object} state - The data to save
+   * @param {string} key - Save key (default: autosave)
+   */
+  async save(state, key = AUTOSAVE_KEY) {
     try {
-      const data = JSON.stringify({
-        version: 1,
-        timestamp: Date.now(),
-        state
+      await this.dbReady;
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(this.storeName, 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+
+        const dataWrapper = {
+          version: 1,
+          timestamp: Date.now(),
+          state
+        };
+
+        const request = store.put(dataWrapper, key);
+
+        request.onsuccess = () => {
+          console.log('Project auto-saved');
+          resolve(true);
+        };
+        request.onerror = () => {
+          console.error('Failed to save:', request.error);
+          reject(request.error);
+        };
       });
-      localStorage.setItem(this.storageKey, data);
-      return true;
     } catch (e) {
-      console.error('Failed to save project:', e);
+      console.error('Failed to save to IndexedDB:', e);
       return false;
     }
   }
 
   /**
-   * Load project state from local storage
-   * @returns {object|null} - Project state or null if none exists
+   * Load project state
+   * @param {string} key - Save key (default: autosave)
    */
-  load() {
+  async load(key = AUTOSAVE_KEY) {
     try {
-      const data = localStorage.getItem(this.storageKey);
-      if (!data) return null;
+      await this.dbReady;
 
-      const parsed = JSON.parse(data);
-      return parsed.state;
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(this.storeName, 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
+
+        request.onsuccess = () => {
+          const result = request.result;
+          resolve(result ? result.state : null);
+        };
+        request.onerror = () => {
+          console.error('Failed to load:', request.error);
+          reject(request.error);
+        };
+      });
     } catch (e) {
-      console.error('Failed to load project:', e);
+      console.error('Failed to load from IndexedDB:', e);
       return null;
     }
   }
 
   /**
    * Check if a saved project exists
-   * @returns {boolean}
+   * @param {string} key - Save key (default: autosave)
    */
-  hasSavedProject() {
-    return localStorage.getItem(this.storageKey) !== null;
+  async hasSavedProject(key = AUTOSAVE_KEY) {
+    const data = await this.load(key);
+    return data !== null;
   }
 
   /**
-   * Delete saved project
+   * Clear saved data
+   * @param {string} key - Save key (default: autosave)
    */
-  clear() {
-    localStorage.removeItem(this.storageKey);
+  async clear(key = AUTOSAVE_KEY) {
+    try {
+      await this.dbReady;
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(this.storeName, 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.delete(key);
+
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (e) {
+      console.error('Failed to clear IndexedDB:', e);
+      return false;
+    }
   }
 
   /**
    * Get last save timestamp
-   * @returns {number|null}
+   * @param {string} key - Save key (default: autosave)
    */
-  getLastSaveTime() {
+  async getLastSaveTime(key = AUTOSAVE_KEY) {
     try {
-      const data = localStorage.getItem(this.storageKey);
-      if (!data) return null;
+      await this.dbReady;
 
-      const parsed = JSON.parse(data);
-      return parsed.timestamp;
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(this.storeName, 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
+
+        request.onsuccess = () => {
+          const result = request.result;
+          resolve(result ? result.timestamp : null);
+        };
+        request.onerror = () => resolve(null);
+      });
     } catch (e) {
       return null;
     }
