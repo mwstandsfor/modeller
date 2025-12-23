@@ -1098,9 +1098,6 @@ class App {
     // Close any open panels
     this.recentPanel.style.display = 'none';
     this.historyBtn.classList.remove('active');
-
-    // Clear auto-save
-    this.storage.clear();
   }
 
   /**
