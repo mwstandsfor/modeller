@@ -57,16 +57,19 @@ class App {
       // 1. Get current faces
       const currentFaces = this.editableMesh.faces;
 
-      // 2. Run the slice
-      const updatedFaces = sliceMesh(currentFaces, point1, point2);
+      // 2. Get camera direction for 3D plane cutting
+      const cameraDirection = this.scene.camera.getWorldDirection(new THREE.Vector3());
 
-      // 3. Update the mesh
+      // 3. Run the slice with camera direction for true 3D cuts
+      const updatedFaces = sliceMesh(currentFaces, point1, point2, cameraDirection);
+
+      // 4. Update the mesh
       this.editableMesh.faces = updatedFaces;
 
-      // 4. Update nextFaceId to avoid ID collisions with subsequent operations
+      // 5. Update nextFaceId to avoid ID collisions with subsequent operations
       this.editableMesh.nextFaceId = Math.max(...updatedFaces.map(f => f.id)) + 1;
 
-      // 5. Merge duplicate vertices created by the cut
+      // 6. Merge duplicate vertices created by the cut
       this.editableMesh.mergeVertices();
 
       this.editableMesh.rebuildMesh();

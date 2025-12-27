@@ -274,14 +274,101 @@ export function findFacesOnLine(faces, linePoint1, linePoint2, excludeFace = nul
 
 
 /**
+ * Find where a plane intersects a line segment
+ * @param {THREE.Plane} plane - The cutting plane
+ * @param {THREE.Vector3} lineStart - Start of line segment
+ * @param {THREE.Vector3} lineEnd - End of line segment
+ * @returns {{point: THREE.Vector3, t: number}|null} - Intersection point and parameter, or null
+ */
+function planeEdgeIntersection(plane, lineStart, lineEnd) {
+  const direction = new THREE.Vector3().subVectors(lineEnd, lineStart);
+  const length = direction.length();
+  if (length < 0.0001) return null;
+
+  direction.normalize();
+
+  // Ray-plane intersection
+  const denominator = plane.normal.dot(direction);
+  if (Math.abs(denominator) < 0.00001) return null; // Line parallel to plane
+
+  const t = -(plane.normal.dot(lineStart) + plane.constant) / denominator;
+
+  // Check if intersection is within segment (with small epsilon)
+  if (t < 0.001 * length || t > 0.999 * length) return null;
+
+  const point = new THREE.Vector3().copy(lineStart).addScaledVector(direction, t);
+  return { point, t: t / length };
+}
+
+/**
+ * Find all faces intersected by a cutting plane
+ * @param {Array<Face>} faces - All faces
+ * @param {THREE.Plane} plane - The cutting plane
+ * @returns {Array} - Faces with their intersection points
+ */
+function findFacesOnPlane(faces, plane) {
+  const results = [];
+
+  for (const face of faces) {
+    const edges = face.getEdges();
+    const intersections = [];
+
+    for (const edge of edges) {
+      const intersection = planeEdgeIntersection(plane, edge.start, edge.end);
+      if (intersection) {
+        intersections.push({
+          edge: edge,
+          point: intersection.point,
+          t: intersection.t
+        });
+      }
+    }
+
+    // A valid cut through a convex face must have exactly 2 edge intersections
+    if (intersections.length === 2) {
+      if (intersections[0].edge.startIndex !== intersections[1].edge.startIndex) {
+        results.push({
+          face: face,
+          startEdge: intersections[0],
+          endEdge: intersections[1]
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
  * Slices the mesh along a line defined by two points
+ * Uses a cutting plane when camera direction is provided for true 3D cuts
  * @param {Array<Face>} faces - The list of faces in your mesh
  * @param {THREE.Vector3} startPoint - 3D start point of cut
  * @param {THREE.Vector3} endPoint - 3D end point of cut
+ * @param {THREE.Vector3} [cameraDirection] - Camera view direction for 3D plane cut
  * @returns {Array<Face>} - The new list of faces (replacing the old ones)
  */
-export function sliceMesh(faces, startPoint, endPoint) {
-  const cuts = findFacesOnLine(faces, startPoint, endPoint);
+export function sliceMesh(faces, startPoint, endPoint, cameraDirection = null) {
+  let cuts;
+
+  if (cameraDirection) {
+    // Create a cutting plane from the cut line and camera direction
+    // The plane normal is perpendicular to both the cut line and camera direction
+    const cutDirection = new THREE.Vector3().subVectors(endPoint, startPoint).normalize();
+    const planeNormal = new THREE.Vector3().crossVectors(cutDirection, cameraDirection).normalize();
+
+    // If the cross product is zero (cut line parallel to camera), fall back to old method
+    if (planeNormal.length() < 0.001) {
+      cuts = findFacesOnLine(faces, startPoint, endPoint);
+    } else {
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, startPoint);
+      cuts = findFacesOnPlane(faces, plane);
+    }
+  } else {
+    // Fall back to old 2D method
+    cuts = findFacesOnLine(faces, startPoint, endPoint);
+  }
+
   if (cuts.length === 0) return faces;
 
   const newFaces = [...faces];

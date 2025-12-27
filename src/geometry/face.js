@@ -441,6 +441,10 @@ export class EditableMesh {
       return face;
     });
     this.nextFaceId = data.nextFaceId;
+
+    // Merge vertices that are at the same position to restore topology
+    this.mergeVertices();
+
     this.rebuildMesh();
   }
 
