@@ -1769,29 +1769,12 @@ class App {
       // Create texture
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
-
-      // Calculate dimensions
-      const maxSize = 2;
-      const aspect = canvas.width / canvas.height;
-      let width, height;
-      if (aspect > 1) {
-        width = maxSize;
-        height = maxSize / aspect;
-      } else {
-        height = maxSize;
-        width = maxSize * aspect;
-      }
+      texture.needsUpdate = true;
 
       // Create mesh and deserialize state
       this.editableMesh = new EditableMesh();
       this.editableMesh.texture = texture;
       this.editableMesh.deserialize(state.mesh);
-
-      // Update material with texture
-      if (this.editableMesh.mesh) {
-        this.editableMesh.mesh.material.map = texture;
-        this.editableMesh.mesh.material.needsUpdate = true;
-      }
 
       // Add to scene
       this.scene.add(this.editableMesh.mesh);
@@ -1803,8 +1786,12 @@ class App {
       this.hasImage = true;
       this.hasMesh = true;
       this.setMode(Modes.SELECT);
-      this.scene.resetCamera();
       this.updateUI();
+
+      // Reset camera after a frame to ensure scene is ready
+      requestAnimationFrame(() => {
+        this.scene.resetCamera();
+      });
 
       console.log('Project restored from auto-save');
       return true;
