@@ -445,6 +445,7 @@ export class CutOverlay {
     // Multi-touch/pinch state - tracked via pointer events
     this.activePointers = new Map();
     this.isPinching = false;
+    this.pinchEndTimer = null;
 
     this.handleResize = this.handleResize.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
@@ -452,6 +453,7 @@ export class CutOverlay {
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerClick = this.handlePointerClick.bind(this);
     this.handleModeChange = this.handleModeChange.bind(this);
+    this.handlePointerCancel = this.handlePointerCancel.bind(this);
 
     window.addEventListener('resize', this.handleResize);
     this.handleResize();
@@ -476,8 +478,9 @@ export class CutOverlay {
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
     this.canvas.addEventListener('click', this.handlePointerClick);
-    // Use window for pointerup to catch it even when pointer events are disabled on overlay
+    // Use window for pointerup/cancel to catch it even when pointer events are disabled on overlay
     window.addEventListener('pointerup', this.handlePointerUp);
+    window.addEventListener('pointercancel', this.handlePointerCancel);
 
     // Show mode toolbar and add listeners
     if (this.modeToolbar) {
@@ -502,6 +505,7 @@ export class CutOverlay {
     this.canvas.removeEventListener('pointermove', this.handlePointerMove);
     this.canvas.removeEventListener('click', this.handlePointerClick);
     window.removeEventListener('pointerup', this.handlePointerUp);
+    window.removeEventListener('pointercancel', this.handlePointerCancel);
 
     // Hide mode toolbar and remove listeners
     if (this.modeToolbar) {
@@ -515,6 +519,10 @@ export class CutOverlay {
     this.isRotating = false;
     this.isPinching = false;
     this.activePointers.clear();
+    if (this.pinchEndTimer) {
+      clearTimeout(this.pinchEndTimer);
+      this.pinchEndTimer = null;
+    }
     this.sceneManager.setControlsEnabled(true);
   }
 
@@ -856,30 +864,12 @@ export class CutOverlay {
     });
 
     // If we have 2+ pointers, enter pinch mode
+    // Simply disable the overlay - user will need to start a fresh pinch on the renderer
     if (this.activePointers.size >= 2) {
       this.isPinching = true;
-      // Disable overlay to let OrbitControls handle the pinch
       this.canvas.style.pointerEvents = 'none';
-
-      // Forward ALL active pointers to OrbitControls
-      const renderer = this.sceneManager.renderer;
-      if (renderer && renderer.domElement) {
-        // Forward each tracked pointer
-        for (const [pointerId, pointerData] of this.activePointers) {
-          const syntheticEvent = new PointerEvent('pointerdown', {
-            bubbles: true,
-            cancelable: true,
-            clientX: pointerData.x,
-            clientY: pointerData.y,
-            pointerId: pointerId,
-            pointerType: pointerData.pointerType || 'touch',
-            button: 0,
-            buttons: 1,
-            isPrimary: pointerId === e.pointerId ? e.isPrimary : false
-          });
-          renderer.domElement.dispatchEvent(syntheticEvent);
-        }
-      }
+      // Clear pointer tracking since we're handing off to OrbitControls
+      this.activePointers.clear();
       return;
     }
 
@@ -1162,11 +1152,20 @@ export class CutOverlay {
     // Remove the pointer from tracking
     this.activePointers.delete(e.pointerId);
 
-    // End pinch mode when we go back to 0 or 1 pointers
-    if (this.isPinching && this.activePointers.size < 2) {
-      this.isPinching = false;
-      // Re-enable overlay pointer events
-      this.canvas.style.pointerEvents = 'auto';
+    // When pinching, we cleared activePointers, so we need a different way to detect
+    // when to re-enable the overlay. Use a short debounce to wait for all fingers to lift.
+    if (this.isPinching) {
+      // Clear any existing debounce timer
+      if (this.pinchEndTimer) {
+        clearTimeout(this.pinchEndTimer);
+      }
+      // Wait a short time for all pointerup events to fire, then re-enable overlay
+      this.pinchEndTimer = setTimeout(() => {
+        this.isPinching = false;
+        this.canvas.style.pointerEvents = 'auto';
+        this.activePointers.clear();
+        this.pinchEndTimer = null;
+      }, 100);
       return;
     }
 
@@ -1185,6 +1184,34 @@ export class CutOverlay {
       this.canvas.style.pointerEvents = 'auto';
       // Keep controls enabled for wheel zoom - only disable rotation dragging
       // by restoring pointer events on overlay
+    }
+  }
+
+  handlePointerCancel(e) {
+    // Pointer was cancelled (e.g., by browser, system gesture, etc.)
+    // Aggressively reset state to recover
+    this.activePointers.delete(e.pointerId);
+
+    if (this.isPinching) {
+      if (this.pinchEndTimer) {
+        clearTimeout(this.pinchEndTimer);
+      }
+      // Immediately restore overlay on cancel
+      this.isPinching = false;
+      this.canvas.style.pointerEvents = 'auto';
+      this.activePointers.clear();
+      this.pinchEndTimer = null;
+    }
+
+    if (this.isRotating) {
+      this.isRotating = false;
+      this.canvas.style.pointerEvents = 'auto';
+    }
+
+    if (this.isDragging) {
+      this.isDragging = false;
+      this.dragTarget = null;
+      this.wasDragging = false;
     }
   }
 
