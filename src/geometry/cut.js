@@ -442,8 +442,8 @@ export class CutOverlay {
     this.dragTarget = null;  // 'start', 'faceStart'
     this.wasDragging = false;  // To suppress click after drag
 
-    // Pinch-to-zoom state
-    this.activeTouches = new Map();
+    // Multi-touch/pinch state - tracked via pointer events
+    this.activePointers = new Map();
     this.isPinching = false;
 
     this.handleResize = this.handleResize.bind(this);
@@ -452,9 +452,6 @@ export class CutOverlay {
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerClick = this.handlePointerClick.bind(this);
     this.handleModeChange = this.handleModeChange.bind(this);
-    this.handleTouchStart = this.handleTouchStart.bind(this);
-    this.handleTouchMove = this.handleTouchMove.bind(this);
-    this.handleTouchEnd = this.handleTouchEnd.bind(this);
 
     window.addEventListener('resize', this.handleResize);
     this.handleResize();
@@ -473,17 +470,14 @@ export class CutOverlay {
     this.canvas.classList.add('active');
     this.isActive = true;
 
+    // Ensure touch-action is set so all touches become pointer events
+    this.canvas.style.touchAction = 'none';
+
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
     this.canvas.addEventListener('click', this.handlePointerClick);
     // Use window for pointerup to catch it even when pointer events are disabled on overlay
     window.addEventListener('pointerup', this.handlePointerUp);
-
-    // Touch events for pinch-to-zoom
-    this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
-    this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-    this.canvas.addEventListener('touchend', this.handleTouchEnd);
-    this.canvas.addEventListener('touchcancel', this.handleTouchEnd);
 
     // Show mode toolbar and add listeners
     if (this.modeToolbar) {
@@ -509,12 +503,6 @@ export class CutOverlay {
     this.canvas.removeEventListener('click', this.handlePointerClick);
     window.removeEventListener('pointerup', this.handlePointerUp);
 
-    // Remove touch event listeners
-    this.canvas.removeEventListener('touchstart', this.handleTouchStart);
-    this.canvas.removeEventListener('touchmove', this.handleTouchMove);
-    this.canvas.removeEventListener('touchend', this.handleTouchEnd);
-    this.canvas.removeEventListener('touchcancel', this.handleTouchEnd);
-
     // Hide mode toolbar and remove listeners
     if (this.modeToolbar) {
       this.modeToolbar.style.display = 'none';
@@ -526,7 +514,7 @@ export class CutOverlay {
     this.canvas.style.pointerEvents = 'auto';
     this.isRotating = false;
     this.isPinching = false;
-    this.activeTouches.clear();
+    this.activePointers.clear();
     this.sceneManager.setControlsEnabled(true);
   }
 
@@ -860,6 +848,41 @@ export class CutOverlay {
   }
 
   handlePointerDown(e) {
+    // Track all active pointers for multi-touch detection
+    this.activePointers.set(e.pointerId, {
+      x: e.clientX,
+      y: e.clientY,
+      pointerType: e.pointerType
+    });
+
+    // If we have 2+ pointers, enter pinch mode
+    if (this.activePointers.size >= 2) {
+      this.isPinching = true;
+      // Disable overlay to let OrbitControls handle the pinch
+      this.canvas.style.pointerEvents = 'none';
+
+      // Forward ALL active pointers to OrbitControls
+      const renderer = this.sceneManager.renderer;
+      if (renderer && renderer.domElement) {
+        // Forward each tracked pointer
+        for (const [pointerId, pointerData] of this.activePointers) {
+          const syntheticEvent = new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            clientX: pointerData.x,
+            clientY: pointerData.y,
+            pointerId: pointerId,
+            pointerType: pointerData.pointerType || 'touch',
+            button: 0,
+            buttons: 1,
+            isPrimary: pointerId === e.pointerId ? e.isPrimary : false
+          });
+          renderer.domElement.dispatchEvent(syntheticEvent);
+        }
+      }
+      return;
+    }
+
     // Check if clicking on an existing point to start dragging
     const pointTarget = this.getPointAtPosition(e.clientX, e.clientY);
     if (pointTarget) {
@@ -1136,6 +1159,17 @@ export class CutOverlay {
   }
 
   handlePointerUp(e) {
+    // Remove the pointer from tracking
+    this.activePointers.delete(e.pointerId);
+
+    // End pinch mode when we go back to 0 or 1 pointers
+    if (this.isPinching && this.activePointers.size < 2) {
+      this.isPinching = false;
+      // Re-enable overlay pointer events
+      this.canvas.style.pointerEvents = 'auto';
+      return;
+    }
+
     // End dragging
     if (this.isDragging) {
       this.isDragging = false;
@@ -1151,64 +1185,6 @@ export class CutOverlay {
       this.canvas.style.pointerEvents = 'auto';
       // Keep controls enabled for wheel zoom - only disable rotation dragging
       // by restoring pointer events on overlay
-    }
-  }
-
-  /**
-   * Handle touch start for pinch-to-zoom detection
-   */
-  handleTouchStart(e) {
-    // Track all active touches
-    for (const touch of e.changedTouches) {
-      this.activeTouches.set(touch.identifier, {
-        x: touch.clientX,
-        y: touch.clientY
-      });
-    }
-
-    // If we have 2+ touches, start pinch mode
-    if (this.activeTouches.size >= 2) {
-      this.isPinching = true;
-      // Disable overlay to let OrbitControls handle the pinch
-      this.canvas.style.pointerEvents = 'none';
-      e.preventDefault();
-    }
-  }
-
-  /**
-   * Handle touch move for pinch-to-zoom
-   */
-  handleTouchMove(e) {
-    // Update tracked touches
-    for (const touch of e.changedTouches) {
-      if (this.activeTouches.has(touch.identifier)) {
-        this.activeTouches.set(touch.identifier, {
-          x: touch.clientX,
-          y: touch.clientY
-        });
-      }
-    }
-
-    // If pinching, prevent default and let OrbitControls handle it
-    if (this.isPinching) {
-      e.preventDefault();
-    }
-  }
-
-  /**
-   * Handle touch end for pinch-to-zoom
-   */
-  handleTouchEnd(e) {
-    // Remove ended touches
-    for (const touch of e.changedTouches) {
-      this.activeTouches.delete(touch.identifier);
-    }
-
-    // If no more touches or back to single touch, end pinch mode
-    if (this.activeTouches.size < 2 && this.isPinching) {
-      this.isPinching = false;
-      // Re-enable overlay pointer events
-      this.canvas.style.pointerEvents = 'auto';
     }
   }
 
