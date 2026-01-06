@@ -73,6 +73,112 @@ export class SceneManager {
     // Pan settings
     this.controls.panSpeed = 1.0;
     this.controls.screenSpacePanning = true; // Pan parallel to screen
+
+    // Shift-to-snap axis navigation
+    this.initAxisSnap();
+  }
+
+  /**
+   * Initialize shift-to-snap axis navigation
+   * When rotating and Shift is pressed, snap to nearest axis view
+   */
+  initAxisSnap() {
+    this.isUserRotating = false;
+
+    // Track when user starts/stops rotating
+    this.controls.addEventListener('start', () => {
+      // Check if it's a rotation (not pan/zoom)
+      // OrbitControls uses state internally, but we can check pointer button
+      this.isUserRotating = true;
+    });
+
+    this.controls.addEventListener('end', () => {
+      this.isUserRotating = false;
+    });
+
+    // Listen for Shift key while rotating
+    this.handleKeyDown = (e) => {
+      if (e.key === 'Shift' && this.isUserRotating) {
+        this.snapToNearestAxis();
+      }
+    };
+
+    window.addEventListener('keydown', this.handleKeyDown);
+  }
+
+  /**
+   * Snap camera to the nearest axis-aligned view
+   */
+  snapToNearestAxis() {
+    const target = this.controls.target;
+    const cameraPos = this.camera.position;
+
+    // Get current camera direction (from target to camera)
+    const direction = new THREE.Vector3()
+      .subVectors(cameraPos, target)
+      .normalize();
+
+    // Distance from target to maintain
+    const distance = cameraPos.distanceTo(target);
+
+    // Define the 6 axis directions (camera positions relative to target)
+    const axisViews = [
+      { name: 'front',  dir: new THREE.Vector3(0, 0, 1) },   // Looking at -Z
+      { name: 'back',   dir: new THREE.Vector3(0, 0, -1) },  // Looking at +Z
+      { name: 'right',  dir: new THREE.Vector3(1, 0, 0) },   // Looking at -X
+      { name: 'left',   dir: new THREE.Vector3(-1, 0, 0) },  // Looking at +X
+      { name: 'top',    dir: new THREE.Vector3(0, 1, 0) },   // Looking at -Y
+      { name: 'bottom', dir: new THREE.Vector3(0, -1, 0) }   // Looking at +Y
+    ];
+
+    // Find nearest axis
+    let nearestView = axisViews[0];
+    let maxDot = -Infinity;
+
+    for (const view of axisViews) {
+      const dot = direction.dot(view.dir);
+      if (dot > maxDot) {
+        maxDot = dot;
+        nearestView = view;
+      }
+    }
+
+    // Calculate new camera position
+    const newPosition = new THREE.Vector3()
+      .copy(nearestView.dir)
+      .multiplyScalar(distance)
+      .add(target);
+
+    // Animate to the new position
+    this.animateCameraTo(newPosition, target);
+  }
+
+  /**
+   * Smoothly animate camera to a new position
+   */
+  animateCameraTo(targetPosition, lookAtTarget) {
+    const startPosition = this.camera.position.clone();
+    const startTime = performance.now();
+    const duration = 200; // ms
+
+    const animate = () => {
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(elapsed / duration, 1);
+
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+
+      // Interpolate position
+      this.camera.position.lerpVectors(startPosition, targetPosition, eased);
+      this.camera.lookAt(lookAtTarget);
+      this.controls.update();
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    animate();
   }
 
   initLights() {
@@ -397,6 +503,9 @@ export class SceneManager {
    */
   dispose() {
     window.removeEventListener('resize', this.handleResize);
+    if (this.handleKeyDown) {
+      window.removeEventListener('keydown', this.handleKeyDown);
+    }
     this.controls.dispose();
     this.renderer.dispose();
   }
